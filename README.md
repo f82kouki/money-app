@@ -16,40 +16,45 @@ warikan/
 └─ vercel.json デプロイ設定
 ```
 
-## クイックスタート（Docker・推奨）
+## クイックスタート（推奨）
 
-Docker Desktop が動いていれば、これだけで PostgreSQL ごと一式が立ち上がる。
+**バックエンドは Docker、フロントエンドはローカル**で動かす。`make dev` がまとめて起動する。
 
 ```bash
-make up      # 初回はイメージをビルド。db + backend + frontend が起動
+make dev
 ```
 
-- アプリ: http://localhost:5173
+これで内部的に：
+1. `docker compose up -d --build` … PostgreSQL + FastAPI を Docker で起動（バックグラウンド）
+2. フロントの依存が無ければ `npm install` してから `npm run dev`（ローカルで Vite を起動）
+
+- アプリ: http://localhost:5178
 - API ドキュメント: http://localhost:8000/docs
-- 停止: `make down`（別ターミナル、または `Ctrl-C`）
-- ログ追従: `make logs`
 
-`.env` は不要（接続情報は docker-compose.yml が渡す）。DB は本番と同じ **PostgreSQL** で、テーブルは起動時に自動作成、データはボリューム `pgdata` に永続化される。`requirements.txt` や `package.json` を変えたら `make restart`（再ビルド）。
+**停止**: フロントは `Ctrl-C`。バックエンド(Docker)はそのまま動き続けるので、止めるときは `make down`。
 
-## クイックスタート（Docker を使わない場合）
+`.env` は不要（DB 接続情報は docker-compose.yml が渡す）。DB は本番と同じ **PostgreSQL**、テーブルは起動時に自動作成、データはボリューム `pgdata` に永続化される。`requirements.txt` を変えたら `make restart`（backend 再ビルド）。
+
+## Docker を使わず全部ローカルで動かす場合
 
 ```bash
-make setup        # backend(venv+pip) と frontend(npm) を一括インストール
-cp .env.example .env   # 初回のみ。ローカルは SQLite 設定のままでOK
-make db-init      # DB にテーブルを作成
-make dev          # backend(:8000) と frontend(:5173) を同時起動
+make setup-backend && make setup   # venv + npm の依存をインストール
+cp .env.example .env               # ローカルは SQLite 設定のままでOK
+make db-init                       # DB にテーブルを作成
+# 別々のターミナルで:
+make backend    # FastAPI (:8000)
+make frontend   # Vite (:5178)
 ```
-
-ブラウザで http://localhost:5173 を開く。API ドキュメントは http://localhost:8000/docs 。
 
 ### 主な make コマンド
 
 | コマンド | 内容 |
 |---|---|
-| `make up` / `make down` | Docker で起動 / 停止 |
-| `make logs` | Docker のログを追従表示 |
-| `make restart` | 再ビルドして起動し直す |
-| `make setup` | （Docker不使用時）依存をすべてインストール |
+| `make dev` | **backend(Docker) + frontend(ローカル) を起動** |
+| `make down` | backend(Docker) を停止 |
+| `make logs` | backend(Docker) のログを追従表示 |
+| `make restart` | backend を再ビルドして起動し直す |
+| `make up` | backend(db+api) だけ Docker で起動 |
 | `make db-init` | DB にテーブル作成 |
 | `make dev` | フロント＋バックを同時起動 |
 | `make backend` / `make frontend` | 片方だけ起動 |

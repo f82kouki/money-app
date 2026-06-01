@@ -1,17 +1,18 @@
 """Pydantic v2 の入出力スキーマ。"""
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---- 認証 ----
+# email はログイン用のID。メール形式は問わず、好きな文字列でOK。
 class RegisterIn(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=6, max_length=72)
 
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
@@ -23,7 +24,7 @@ class TokenOut(BaseModel):
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    email: EmailStr
+    email: str
     created_at: datetime
 
 

@@ -44,7 +44,7 @@ class Settings:
     )
     # CORS 許可オリジン（ローカル開発の Vite）。本番は同一ドメイン /api なので不要。
     cors_origins: list[str] = os.getenv(
-        "CORS_ORIGINS", "http://localhost:5173"
+        "CORS_ORIGINS", "http://localhost:5178"
     ).split(",")
 
 

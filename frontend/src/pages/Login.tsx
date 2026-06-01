@@ -29,10 +29,9 @@ export default function Login() {
       <h1 className="mb-8 text-center text-3xl font-bold text-indigo-600">warikan</h1>
       <form onSubmit={onSubmit} className="space-y-4">
         <input
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          placeholder="メールアドレス"
+          type="text"
+          autoComplete="username"
+          placeholder="ユーザーID（メールでなくてもOK）"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required

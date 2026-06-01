@@ -8,7 +8,8 @@ const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 5178,
+    strictPort: true, // 5178 が埋まっていたら別ポートに逃げず明示エラーにする
     host: true, // Docker コンテナ外（ブラウザ）からアクセス可能にする
     proxy: {
       "/api": {

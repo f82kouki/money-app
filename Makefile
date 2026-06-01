@@ -10,51 +10,54 @@ PYTHON := $(shell command -v python3.13 || command -v python3.12 || command -v p
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: help setup setup-backend setup-frontend db-init backend frontend dev lint build clean \
-	up up-d down logs build-docker restart ps
+.PHONY: help dev setup setup-frontend setup-backend db-init backend frontend lint build clean \
+	up up-d down logs build-docker restart ps db-shell db-tables
 
 help:
-	@echo "== Docker（推奨）=="
-	@echo "make up          - 3コンテナ(db/backend/frontend)を起動"
-	@echo "make down        - コンテナを停止・削除"
-	@echo "make logs        - ログを表示（追従）"
+	@echo "== 開発（これだけでOK）=="
+	@echo "make dev         - backend(Docker) + frontend(ローカル) を起動"
+	@echo "make down        - backend の Docker を停止"
+	@echo "make logs        - backend(Docker) のログを追従表示"
+	@echo ""
+	@echo "== バックエンド Docker 個別操作 =="
+	@echo "make up          - backend(db+api) を Docker で起動（フロントなし）"
 	@echo "make restart     - 再ビルドして起動し直す"
 	@echo ""
-	@echo "== ローカル(venv/npm 直接) =="
-	@echo "make setup       - backend(venv+pip) と frontend(npm) の依存をインストール"
-	@echo "make db-init     - DB にテーブルを作成"
-	@echo "make dev         - backend と frontend を並列起動"
+	@echo "== その他 =="
+	@echo "make setup       - frontend(npm) の依存をインストール"
 	@echo "make lint        - 型チェック（フロント）"
 	@echo "make build       - frontend を本番ビルド"
-	@echo "make clean       - venv / node_modules / dist を削除"
+	@echo "make clean       - node_modules / dist などを削除"
 
-setup: setup-backend setup-frontend
+# ===== メイン: backend は Docker、frontend はローカル（vimmy と同じ流儀）=====
+dev:
+	@echo "🚀 フル開発環境を起動中..."
+	@echo "バックエンドサービス起動中..."
+	docker compose up -d --build
+	@echo "フロントエンド開発サーバー起動中..."
+	cd $(FRONTEND) && ([ -d node_modules ] || npm install) && npm run dev
 
+# frontend の依存をインストール（backend は Docker なので venv 不要）
+setup: setup-frontend
+
+setup-frontend:
+	cd $(FRONTEND) && npm install
+
+frontend:
+	cd $(FRONTEND) && npm run dev
+
+# --- 以下は Docker を使わず backend をローカルで動かしたい場合の補助 ---
 setup-backend:
 	@echo "using $(PYTHON)"
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
 	$(PIP) install -r $(BACKEND)/requirements.txt
 
-setup-frontend:
-	cd $(FRONTEND) && npm install
-
 db-init:
 	cd $(BACKEND) && .venv/bin/python -c "from app.db import init_db; init_db(); print('tables created')"
 
 backend:
 	cd $(BACKEND) && .venv/bin/uvicorn app.main:app --reload --port 8000
-
-frontend:
-	cd $(FRONTEND) && npm run dev
-
-# backend と frontend を同時起動（Ctrl-C で両方停止）
-dev:
-	@echo "backend(:8000) と frontend(:5173) を起動します。Ctrl-C で停止。"
-	@trap 'kill 0' INT TERM; \
-	( cd $(BACKEND) && .venv/bin/uvicorn app.main:app --reload --port 8000 ) & \
-	( cd $(FRONTEND) && npm run dev ) & \
-	wait
 
 lint:
 	cd $(FRONTEND) && npm run lint
@@ -88,3 +91,15 @@ build-docker:
 
 restart:
 	docker compose up --build
+
+# ===== DB の中身を見る =====
+# psql の対話シェルに入る（\dt でテーブル一覧、\q で終了）
+db-shell:
+	docker compose exec db psql -U warikan -d warikan
+
+# 全テーブルの中身をまとめて表示
+db-tables:
+	@for t in users groups group_members payments; do \
+		echo "=========== $$t ==========="; \
+		docker compose exec -T db psql -U warikan -d warikan -c "SELECT * FROM $$t;"; \
+	done

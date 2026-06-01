@@ -1,9 +1,9 @@
-# warikan ローカル開発用 Docker 構成
-# db(PostgreSQL) + backend(FastAPI) + frontend(Vite) の3コンテナ。
+# warikan バックエンド用 Docker 構成
+# db(PostgreSQL) + backend(FastAPI) の2コンテナ。
+# フロントエンド(Vite)はローカルで起動する（`make dev` が両方まとめて面倒を見る）。
 # 本番(Supabase)と同じ PostgreSQL を使うので、SQLite との方言差で困らない。
 #
-#   docker compose up        … 起動（初回はビルド）
-#   http://localhost:5173    … アプリ
+#   make dev                   … backend(Docker) + frontend(ローカル) を起動
 #   http://localhost:8000/docs … API ドキュメント
 
 services:
@@ -31,7 +31,7 @@ services:
       JWT_SECRET: dev-secret-change-me
       AUTO_CREATE_TABLES: "1" # 起動時にテーブルを自動作成
       LOG_LEVEL: INFO
-      CORS_ORIGINS: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5178
     ports:
       - "8000:8000"
     volumes:
@@ -39,18 +39,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  frontend:
-    build: ./frontend
-    environment:
-      BACKEND_URL: http://backend:8000 # Vite proxy の転送先（コンテナ名で解決）
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app # ソース変更を即反映（HMR）
-      - /app/node_modules # コンテナ内の node_modules を保持
-    depends_on:
-      - backend
 
 volumes:
   pgdata:
