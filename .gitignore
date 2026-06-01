@@ -1,0 +1,43 @@
+# ===== Python (backend) =====
+backend/.venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite（ローカルお試し用DB。コミットしない）
+*.db
+*.sqlite3
+backend/warikan.db
+
+# ===== Node (frontend) =====
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# ===== 環境変数（秘密情報。.env.example だけ追跡する）=====
+.env
+.env.local
+.env.*.local
+
+# ===== Docker =====
+# 個人用のローカル上書き（あれば）
+docker-compose.override.yml
+
+# ===== デプロイ (Vercel) =====
+.vercel/
+
+# ===== ログ =====
+*.log
+npm-debug.log*
+
+# ===== OS / エディタ =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

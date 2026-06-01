@@ -1,0 +1,56 @@
+# warikan ローカル開発用 Docker 構成
+# db(PostgreSQL) + backend(FastAPI) + frontend(Vite) の3コンテナ。
+# 本番(Supabase)と同じ PostgreSQL を使うので、SQLite との方言差で困らない。
+#
+#   docker compose up        … 起動（初回はビルド）
+#   http://localhost:5173    … アプリ
+#   http://localhost:8000/docs … API ドキュメント
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: warikan
+      POSTGRES_PASSWORD: warikan
+      POSTGRES_DB: warikan
+    ports:
+      - "5433:5432" # ホストからは localhost:5433 で psql 等で覗ける（5432 は他で使用中のため）
+    volumes:
+      - pgdata:/var/lib/postgresql/data # データを永続化
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warikan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql://warikan:warikan@db:5432/warikan
+      JWT_SECRET: dev-secret-change-me
+      AUTO_CREATE_TABLES: "1" # 起動時にテーブルを自動作成
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app # ソース変更を即反映（--reload と併用）
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8000 # Vite proxy の転送先（コンテナ名で解決）
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app # ソース変更を即反映（HMR）
+      - /app/node_modules # コンテナ内の node_modules を保持
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
