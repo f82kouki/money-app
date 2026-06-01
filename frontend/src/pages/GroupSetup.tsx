@@ -44,14 +44,14 @@ export default function GroupSetup() {
   return (
     <div className="flex min-h-screen flex-col justify-center px-6">
       <h1 className="mb-6 text-center text-2xl font-bold text-slate-800">
-        割り勘グループ
+        グループを作成する
       </h1>
 
       <div className="mb-6 flex rounded-xl bg-slate-200 p-1">
         <button
           onClick={() => setMode("create")}
           className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-            mode === "create" ? "bg-white text-indigo-600 shadow" : "text-slate-500"
+            mode === "create" ? "bg-white text-primary-text shadow" : "text-slate-500"
           }`}
         >
           新しく作る
@@ -59,7 +59,7 @@ export default function GroupSetup() {
         <button
           onClick={() => setMode("join")}
           className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-            mode === "join" ? "bg-white text-indigo-600 shadow" : "text-slate-500"
+            mode === "join" ? "bg-white text-primary-text shadow" : "text-slate-500"
           }`}
         >
           招待コードで参加
@@ -75,7 +75,7 @@ export default function GroupSetup() {
             onChange={(e) => setDisplayName(e.target.value)}
             required
             maxLength={50}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
           />
         </div>
 
@@ -88,7 +88,7 @@ export default function GroupSetup() {
               onChange={(e) => setGroupName(e.target.value)}
               required
               maxLength={100}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
             />
           </div>
         ) : (
@@ -101,7 +101,7 @@ export default function GroupSetup() {
               required
               maxLength={12}
               autoCapitalize="characters"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-lg font-mono tracking-widest outline-none focus:border-indigo-500"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-lg font-mono tracking-widest outline-none focus:border-primary-mid"
             />
           </div>
         )}
@@ -110,7 +110,7 @@ export default function GroupSetup() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white active:bg-indigo-700 disabled:opacity-50"
+          className="w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
         >
           {loading ? "処理中…" : mode === "create" ? "グループを作成" : "参加する"}
         </button>

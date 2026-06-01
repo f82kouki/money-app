@@ -80,14 +80,14 @@ export default function Settings() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             maxLength={50}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
           />
           {message && <p className="mt-2 text-sm text-green-600">{message}</p>}
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
           <button
             onClick={saveName}
             disabled={saving}
-            className="mt-3 w-full rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white active:bg-indigo-700 disabled:opacity-50"
+            className="mt-3 w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
           >
             {saving ? "保存中…" : "保存"}
           </button>
@@ -111,7 +111,7 @@ export default function Settings() {
               >
                 {group.invite_code}
               </button>
-              <p className="mt-2 text-center text-xs text-indigo-500">
+              <p className="mt-2 text-center text-xs text-primary-text">
                 {copied ? "コピーしました！" : "タップでコピー"}
               </p>
             </>

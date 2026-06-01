@@ -20,7 +20,7 @@ export default function App() {
   const { authed } = useAuth();
 
   return (
-    <div className="mx-auto min-h-full max-w-md bg-slate-100">
+    <div className="mx-auto min-h-full max-w-md bg-[#FFF5F8]">
       <Routes>
         <Route
           path="/login"

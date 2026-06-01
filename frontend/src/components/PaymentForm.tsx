@@ -69,9 +69,9 @@ export default function PaymentForm({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-2xl bg-white p-4 shadow">
+    <form onSubmit={submit} className="space-y-3 rounded-2xl bg-white p-4">
       {/* 金額 */}
-      <div className="flex items-center rounded-xl border border-slate-300 px-3 focus-within:border-indigo-500">
+      <div className="flex items-center rounded-xl border border-slate-300 px-3 focus-within:border-primary-mid">
         <span className="text-xl text-slate-400">¥</span>
         <input
           type="number"
@@ -92,7 +92,7 @@ export default function PaymentForm({
             onClick={() => setPayer(m.id)}
             className={`truncate rounded-xl py-3 text-base font-semibold ${
               payer === m.id
-                ? "bg-indigo-600 text-white"
+                ? "bg-primary text-primary-text"
                 : "bg-slate-100 text-slate-600"
             }`}
           >
@@ -107,13 +107,13 @@ export default function PaymentForm({
         value={category}
         onChange={(e) => setCategory(e.target.value)}
         maxLength={100}
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
       />
       <input
         type="date"
         value={paidAt}
         onChange={(e) => setPaidAt(e.target.value)}
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
       />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -131,7 +131,7 @@ export default function PaymentForm({
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white active:bg-indigo-700 disabled:opacity-50"
+          className="flex-1 rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
         >
           {saving ? "保存中…" : submitLabel}
         </button>
