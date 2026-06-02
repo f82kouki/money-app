@@ -77,7 +77,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen pb-10">
-      <header className="flex items-center justify-end px-4 py-4">
+      <header className="flex items-center justify-between px-4 py-4">
+        <img
+          src="/favicon.png"
+          alt="warikan"
+          className="h-9 w-9 rounded-xl object-cover"
+        />
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
