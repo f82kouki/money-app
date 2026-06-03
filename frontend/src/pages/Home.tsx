@@ -3,10 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import CelebrationDialog from "../components/CelebrationDialog";
 import PaymentForm, { type PaymentFormValues } from "../components/PaymentForm";
 import PaymentList from "../components/PaymentList";
 import SummaryCard from "../components/SummaryCard";
-import type { Group, Payment, Summary } from "../types";
+import type { CelebrationSettings, Group, Payment, Summary } from "../types";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [celebrationUrl, setCelebrationUrl] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const [s, p] = await Promise.all([
@@ -49,6 +51,16 @@ export default function Home() {
   async function addPayment(values: PaymentFormValues) {
     await api.post<Payment>("/api/payments", values);
     await refresh();
+    // 記録成功後にお祝い画像ダイアログを表示（最新設定をその場で取得）。
+    // 編集(updatePayment)では表示しない。
+    try {
+      const c = await api.get<CelebrationSettings>("/api/me/celebration");
+      if (c.celebration_enabled && c.celebration_image_url) {
+        setCelebrationUrl(c.celebration_image_url);
+      }
+    } catch {
+      /* お祝い表示は付随機能なので失敗しても記録は成功扱い */
+    }
   }
 
   async function updatePayment(id: string, values: PaymentFormValues) {
@@ -266,6 +278,13 @@ export default function Home() {
           />
         </section>
       </div>
+
+      {celebrationUrl && (
+        <CelebrationDialog
+          image={celebrationUrl}
+          onClose={() => setCelebrationUrl(null)}
+        />
+      )}
     </div>
   );
 }
