@@ -1,53 +1,53 @@
+import { useEffect, useState } from "react";
+
 interface Props {
   image: string;
   onClose: () => void;
 }
 
-/** 記録成功後に表示するお祝い画像ダイアログ（中央に画像 + 閉じるボタン）。 */
+const VISIBLE_MS = 2500; // 表示しておく時間（2〜3秒）
+const FADE_MS = 300; // フェードイン/アウトの長さ
+
+/** 記録成功後に表示するお祝い画像ダイアログ（ふわっと表示・ふわっと消える）。 */
 export default function CelebrationDialog({ image, onClose }: Props) {
+  const [shown, setShown] = useState(false);
+
+  function fadeOut() {
+    setShown(false);
+    setTimeout(onClose, FADE_MS); // フェードアウト後に実際に閉じる
+  }
+
+  useEffect(() => {
+    // 初回描画は opacity-0 → 次フレームで opacity-100 にしてフェードイン
+    const raf = requestAnimationFrame(() => setShown(true));
+    const timer = setTimeout(fadeOut, VISIBLE_MS);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+      onClick={fadeOut}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 transition-opacity ease-out ${
+        shown ? "opacity-100" : "opacity-0"
+      }`}
+      style={{ transitionDuration: `${FADE_MS}ms` }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative flex max-h-[85vh] max-w-[90vw] flex-col items-center"
+        className={`relative flex max-h-[85vh] max-w-[90vw] flex-col items-center transition-all ease-out ${
+          shown ? "scale-100 opacity-100" : "scale-95 opacity-0"
+        }`}
+        style={{ transitionDuration: `${FADE_MS}ms` }}
       >
-        {/* 閉じる（右上） */}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="閉じる"
-          className="absolute -right-2 -top-2 z-10 rounded-full bg-white p-1.5 text-slate-600 shadow-md"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <line x1="6" y1="6" x2="18" y2="18" />
-            <line x1="18" y1="6" x2="6" y2="18" />
-          </svg>
-        </button>
-
         <img
           src={image}
           alt="お祝い"
           className="max-h-[75vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
         />
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-4 rounded-xl bg-white px-8 py-3 text-base font-semibold text-primary-text shadow active:bg-primary-light"
-        >
-          閉じる
-        </button>
       </div>
     </div>
   );
