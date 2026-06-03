@@ -184,13 +184,13 @@ export default function Settings() {
               role="switch"
               aria-checked={celebEnabled}
               onClick={() => toggleCeleb(!celebEnabled)}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+              className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-colors ${
                 celebEnabled ? "bg-primary-mid" : "bg-slate-300"
               }`}
             >
               <span
-                className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                  celebEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  celebEnabled ? "translate-x-5" : "translate-x-0"
                 }`}
               />
             </button>
