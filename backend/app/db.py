@@ -44,10 +44,14 @@ def _ensure_user_celebration_columns() -> None:
     if "users" not in insp.get_table_names():
         return  # テーブルは create_all 側で作られる
     cols = {c["name"] for c in insp.get_columns("users")}
+    # BOOLEAN のデフォルトは DB 方言で表記が異なる（Postgres は整数 0 を boolean に
+    # 暗黙変換しない）。SQLite は 0、それ以外(Postgres等)は false を使う。
+    bool_false = "0" if engine.dialect.name == "sqlite" else "false"
     with engine.begin() as conn:
         if "celebration_enabled" not in cols:
             conn.exec_driver_sql(
-                "ALTER TABLE users ADD COLUMN celebration_enabled BOOLEAN NOT NULL DEFAULT 0"
+                "ALTER TABLE users ADD COLUMN celebration_enabled "
+                f"BOOLEAN NOT NULL DEFAULT {bool_false}"
             )
         if "celebration_image" not in cols:
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN celebration_image TEXT")

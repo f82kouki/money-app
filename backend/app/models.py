@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,7 +37,7 @@ class User(Base):
     # お祝い画像（記録時のダイアログ）。celebration_image は参照文字列:
     #   ローカル保存=data URL / 本番(Supabase, Issue #1)=Storage パス
     celebration_enabled: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="0"
+        Boolean, default=False, server_default=false()
     )
     celebration_image: Mapped[str | None] = mapped_column(Text, nullable=True)
 

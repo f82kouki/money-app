@@ -168,10 +168,10 @@ export default function Settings() {
           </button>
         </section>
 
-        {/* 記録時のお祝い画像 */}
+        {/* 記録時の表示画像*/}
         <section className="rounded-2xl bg-white p-4 shadow">
           <h2 className="mb-2 text-sm font-semibold text-slate-500">
-            記録時のお祝い画像
+            記録時の表示画像
           </h2>
 
           {/* オン/オフ スイッチ */}
