@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
 from .logging_config import logger
-from .routers import auth, groups, payments
+from .routers import auth, groups, payments, settings as settings_router
 
 app = FastAPI(title="warikan API")
 
@@ -82,6 +82,7 @@ async def on_validation_error(request: Request, exc: RequestValidationError):
 app.include_router(auth.router)
 app.include_router(groups.router)
 app.include_router(payments.router)
+app.include_router(settings_router.router)
 
 
 @app.on_event("startup")

@@ -2,7 +2,17 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -23,6 +33,18 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    # お祝い画像（記録時のダイアログ）。celebration_image は参照文字列:
+    #   ローカル保存=data URL / 本番(Supabase, Issue #1)=Storage パス
+    celebration_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
+    # celebration_image は最大 ~2.7MB の data URL になり得るため deferred で遅延ロードし、
+    # get_current_user の毎リクエストの select(User) で読み込まれないようにする。
+    # 複数ユーザーの画像を一括で読む場合は select に undefer() を明示すること。
+    celebration_image: Mapped[str | None] = mapped_column(
+        Text, nullable=True, deferred=True
+    )
 
     memberships: Mapped[list["GroupMember"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
