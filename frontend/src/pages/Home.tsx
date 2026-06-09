@@ -19,6 +19,9 @@ export default function Home() {
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [celebrationUrl, setCelebrationUrl] = useState<string | null>(null);
+  // お祝い設定はマウント時に1回だけ取得して保持する（記録のたびに再取得しない）。
+  // 設定変更は別ルート(/settings)でのみ起き、戻ると Home が再マウントされ再取得される。
+  const [celebration, setCelebration] = useState<CelebrationSettings | null>(null);
 
   const refresh = useCallback(async () => {
     const [s, p] = await Promise.all([
@@ -48,18 +51,21 @@ export default function Home() {
     })();
   }, [navigate, refresh]);
 
+  useEffect(() => {
+    // お祝い表示は付随機能なので、取得失敗は無視して記録機能には影響させない。
+    api
+      .get<CelebrationSettings>("/api/me/celebration")
+      .then(setCelebration)
+      .catch(() => {});
+  }, []);
+
   async function addPayment(values: PaymentFormValues) {
     await api.post<Payment>("/api/payments", values);
     await refresh();
-    // 記録成功後にお祝い画像ダイアログを表示（最新設定をその場で取得）。
+    // 記録成功後にお祝い画像ダイアログを表示（マウント時に取得済みの設定を使う）。
     // 編集(updatePayment)では表示しない。
-    try {
-      const c = await api.get<CelebrationSettings>("/api/me/celebration");
-      if (c.celebration_enabled && c.celebration_image_url) {
-        setCelebrationUrl(c.celebration_image_url);
-      }
-    } catch {
-      /* お祝い表示は付随機能なので失敗しても記録は成功扱い */
+    if (celebration?.celebration_enabled && celebration.celebration_image_url) {
+      setCelebrationUrl(celebration.celebration_image_url);
     }
   }
 

@@ -39,7 +39,12 @@ class User(Base):
     celebration_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false()
     )
-    celebration_image: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # celebration_image は最大 ~2.7MB の data URL になり得るため deferred で遅延ロードし、
+    # get_current_user の毎リクエストの select(User) で読み込まれないようにする。
+    # 複数ユーザーの画像を一括で読む場合は select に undefer() を明示すること。
+    celebration_image: Mapped[str | None] = mapped_column(
+        Text, nullable=True, deferred=True
+    )
 
     memberships: Mapped[list["GroupMember"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

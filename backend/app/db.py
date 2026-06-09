@@ -46,15 +46,22 @@ def _ensure_user_celebration_columns() -> None:
     cols = {c["name"] for c in insp.get_columns("users")}
     # BOOLEAN のデフォルトは DB 方言で表記が異なる（Postgres は整数 0 を boolean に
     # 暗黙変換しない）。SQLite は 0、それ以外(Postgres等)は false を使う。
-    bool_false = "0" if engine.dialect.name == "sqlite" else "false"
+    # Postgres は ADD COLUMN IF NOT EXISTS をサポートするので、複数インスタンスが
+    # 同時に inspect ガードを通過しても重複 ALTER でエラーにならない。SQLite は
+    # IF NOT EXISTS 非対応（かつ並行書き込みも無い）ため素の ALTER を使う。
+    is_sqlite = engine.dialect.name == "sqlite"
+    bool_false = "0" if is_sqlite else "false"
+    if_not_exists = "" if is_sqlite else "IF NOT EXISTS "
     with engine.begin() as conn:
         if "celebration_enabled" not in cols:
             conn.exec_driver_sql(
-                "ALTER TABLE users ADD COLUMN celebration_enabled "
+                f"ALTER TABLE users ADD COLUMN {if_not_exists}celebration_enabled "
                 f"BOOLEAN NOT NULL DEFAULT {bool_false}"
             )
         if "celebration_image" not in cols:
-            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN celebration_image TEXT")
+            conn.exec_driver_sql(
+                f"ALTER TABLE users ADD COLUMN {if_not_exists}celebration_image TEXT"
+            )
 
 
 def init_db() -> None:
