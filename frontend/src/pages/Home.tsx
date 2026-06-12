@@ -93,6 +93,41 @@ export default function Home() {
 
   const closeMenu = () => setMenuOpen(false);
 
+  // PayPayアプリをURLスキームで起動する。
+  // 素の <a href="paypay://"> だと「未インストール時に何も起きない」「一部ブラウザで
+  // 起動が不安定」なので、JSで起動を試みつつ未インストール時はストア/公式サイトへ誘導する。
+  const openPayPay = (e: React.MouseEvent) => {
+    e.preventDefault();
+    closeMenu();
+
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const isAndroid = /Android/i.test(ua);
+
+    // モバイル以外(PC等)はアプリが無いので公式サイトを開く
+    if (!isIOS && !isAndroid) {
+      window.open("https://paypay.ne.jp/", "_blank", "noopener");
+      return;
+    }
+
+    const storeUrl = isIOS
+      ? "https://apps.apple.com/jp/app/id1435783608"
+      : "https://play.google.com/store/apps/details?id=jp.ne.paypay.android.app";
+
+    // 未インストールでアプリが起動しなかった場合はストアへフォールバック
+    const fallback = window.setTimeout(() => {
+      window.location.href = storeUrl;
+    }, 1500);
+    // アプリ起動でタブが非表示になったらフォールバックを取り消す
+    const cancelFallback = () => {
+      window.clearTimeout(fallback);
+      document.removeEventListener("visibilitychange", cancelFallback);
+    };
+    document.addEventListener("visibilitychange", cancelFallback);
+
+    window.location.href = "paypay://";
+  };
+
   return (
     <div className="min-h-screen pb-10">
       <header className="flex items-center justify-between px-4 py-4">
@@ -229,7 +264,7 @@ export default function Home() {
 
           <a
             href="paypay://"
-            onClick={closeMenu}
+            onClick={openPayPay}
             className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-primary-text hover:bg-primary-light"
           >
             <svg
