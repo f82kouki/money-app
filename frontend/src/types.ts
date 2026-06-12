@@ -36,3 +36,8 @@ export interface Summary {
   to_member_id: string | null;
   message: string;
 }
+
+export interface CelebrationSettings {
+  celebration_enabled: boolean;
+  celebration_image_url: string | null;
+}

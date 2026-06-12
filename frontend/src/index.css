@@ -9,6 +9,6 @@ body,
 }
 
 body {
-  @apply bg-slate-100 text-slate-900;
+  @apply bg-[#FFF5F8] text-slate-900;
   -webkit-tap-highlight-color: transparent;
 }

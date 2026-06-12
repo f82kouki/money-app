@@ -26,7 +26,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen flex-col justify-center px-6">
-      <h1 className="mb-8 text-center text-3xl font-bold text-indigo-600">warikan</h1>
+      <h1 className="mb-8 text-center text-3xl font-bold text-primary-text">warikan</h1>
       <form onSubmit={onSubmit} className="space-y-4">
         <input
           type="text"
@@ -35,7 +35,7 @@ export default function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
         />
         <input
           type="password"
@@ -44,20 +44,20 @@ export default function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-indigo-500"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-indigo-600 py-3 text-base font-semibold text-white active:bg-indigo-700 disabled:opacity-50"
+          className="w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
         >
           {loading ? "ログイン中…" : "ログイン"}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">
         アカウントがない？{" "}
-        <Link to="/register" className="font-semibold text-indigo-600">
+        <Link to="/register" className="font-semibold text-primary-text">
           新規登録
         </Link>
       </p>

@@ -50,6 +50,17 @@ class MemberUpdateIn(BaseModel):
     display_name: str = Field(min_length=1, max_length=50)
 
 
+# ---- お祝い画像（記録時のダイアログ） ----
+class CelebrationOut(BaseModel):
+    celebration_enabled: bool
+    # 表示用URL（ローカル=data URL / 本番=署名URL）。未設定なら null。
+    celebration_image_url: str | None
+
+
+class CelebrationToggleIn(BaseModel):
+    celebration_enabled: bool
+
+
 class GroupOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
