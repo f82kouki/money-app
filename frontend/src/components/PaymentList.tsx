@@ -5,7 +5,7 @@ import PaymentForm, { type PaymentFormValues } from "./PaymentForm";
 
 const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 function nameOf(members: Member[], id: string): string {
   return members.find((m) => m.id === id)?.display_name ?? "?";
@@ -40,24 +40,13 @@ export default function PaymentList({
   // API は新しい順で来るので、チャットらしく「古い→新しい（最新が下）」に並べ替える
   const ordered = [...payments].reverse();
 
-  // 最新 visibleCount 件（配列の末尾）だけ表示し、「もっと見る」で古い方を遡る
-  const start = Math.max(0, ordered.length - visibleCount);
-  const visible = ordered.slice(start);
-  const hasMore = start > 0;
-  const remaining = start;
+  // 古い方から visibleCount 件（配列の先頭）だけ表示し、「もっと見る」で新しい方を下に追加する
+  const visible = ordered.slice(0, visibleCount);
+  const hasMore = visibleCount < ordered.length;
+  const remaining = ordered.length - visibleCount;
 
   return (
     <div className="space-y-3">
-      {hasMore && (
-        <div className="flex justify-center">
-          <button
-            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-primary-text shadow-sm active:bg-primary-light"
-          >
-            もっと見る（残り{remaining}件）
-          </button>
-        </div>
-      )}
       {visible.map((p) => {
         const mine = p.payer_member_id === myMemberId;
 
@@ -139,6 +128,16 @@ export default function PaymentList({
           </div>
         );
       })}
+      {hasMore && (
+        <div className="flex justify-center">
+          <button
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-primary-text shadow-sm active:bg-primary-light"
+          >
+            もっと見る（残り{remaining}件）
+          </button>
+        </div>
+      )}
     </div>
   );
 }
