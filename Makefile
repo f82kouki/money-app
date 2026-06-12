@@ -10,7 +10,7 @@ PYTHON := $(shell command -v python3.13 || command -v python3.12 || command -v p
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: help dev setup setup-frontend setup-backend db-init backend frontend lint build clean \
+.PHONY: help dev setup setup-frontend setup-backend db-init backend frontend lint build check clean \
 	up up-d down logs build-docker restart ps db-shell db-tables
 
 help:
@@ -27,6 +27,7 @@ help:
 	@echo "make setup       - frontend(npm) の依存をインストール"
 	@echo "make lint        - 型チェック（フロント）"
 	@echo "make build       - frontend を本番ビルド"
+	@echo "make check       - 型チェック + 本番ビルドで通るか確認（デプロイ前）"
 	@echo "make clean       - node_modules / dist などを削除"
 
 # ===== メイン: backend は Docker、frontend はローカル（vimmy と同じ流儀）=====
@@ -64,6 +65,10 @@ lint:
 
 build:
 	cd $(FRONTEND) && npm run build
+
+# 型チェック + 本番ビルドが通るかをまとめて確認（デプロイ前の検証用）
+check:
+	cd $(FRONTEND) && npm run lint && npm run build
 
 clean:
 	rm -rf $(VENV) $(FRONTEND)/node_modules $(FRONTEND)/dist $(BACKEND)/warikan.db

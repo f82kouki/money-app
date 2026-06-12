@@ -2,9 +2,10 @@
 # 中身は backend/requirements.txt と同じものを維持すること。
 fastapi==0.115.6
 sqlalchemy==2.0.36
-pydantic[email]==2.10.4
+# psycopg/bcrypt/pydantic は Python 3.14 用 wheel がある版に固定（Vercel が 3.14 を使うため）。
+pydantic[email]==2.13.4
 python-multipart==0.0.20
-psycopg[binary]==3.2.9
-bcrypt==4.2.1
+psycopg[binary]==3.3.4
+bcrypt==5.0.0
 pyjwt==2.10.1
 python-dotenv==1.0.1

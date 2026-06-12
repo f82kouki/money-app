@@ -37,10 +37,10 @@ export default function PaymentList({
     );
   }
 
-  // API は新しい順で来るので、チャットらしく「古い→新しい（最新が下）」に並べ替える
-  const ordered = [...payments].reverse();
+  // API は新しい順で来るので、そのまま「最新が一番上」に表示する
+  const ordered = payments;
 
-  // 古い方から visibleCount 件（配列の先頭）だけ表示し、「もっと見る」で新しい方を下に追加する
+  // 新しい方から visibleCount 件（配列の先頭）だけ表示し、「もっと見る」で古い方を下に追加する
   const visible = ordered.slice(0, visibleCount);
   const hasMore = visibleCount < ordered.length;
   const remaining = ordered.length - visibleCount;
