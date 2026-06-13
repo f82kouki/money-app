@@ -34,7 +34,7 @@ export default function PaymentList({
   if (payments.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-slate-400">
-        まだ記録がありません。上から追加しましょう。
+        まだ記録がありません。
       </p>
     );
   }

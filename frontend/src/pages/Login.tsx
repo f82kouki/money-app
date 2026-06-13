@@ -56,7 +56,7 @@ export default function Login() {
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">
-        アカウントがない？{" "}
+        アカウントお持ちでない方　{" "}
         <Link to="/register" className="font-semibold text-primary-text">
           新規登録
         </Link>
