@@ -9,13 +9,17 @@ from .config import settings
 
 _url = settings.database_url
 _connect_args: dict = {}
-_engine_kwargs: dict = {"pool_pre_ping": True}
+_engine_kwargs: dict = {}
 
 if _url.startswith("sqlite"):
     # SQLite はスレッドチェックを外す（FastAPI のスレッド対応）
     _connect_args = {"check_same_thread": False}
+    # プールした接続が古くなる場合に備えた事前 ping（プールを使う経路のみ有効）
+    _engine_kwargs["pool_pre_ping"] = True
 else:
-    # サーバーレス(Vercel)では関数側でプールせず、Supabase のプーラーに任せる
+    # サーバーレス(Vercel)では関数側でプールせず、Supabase のプーラーに任せる。
+    # NullPool は毎回新規接続するため、pool_pre_ping(SELECT 1) は余計な1往復に
+    # なるだけ（新規接続は常に新鮮）。よってここでは付けない。
     _engine_kwargs["poolclass"] = NullPool
 
 engine = create_engine(_url, connect_args=_connect_args, **_engine_kwargs)
