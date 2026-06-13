@@ -311,6 +311,7 @@ export default function Home() {
           <PaymentForm
             members={group.members}
             defaultPayerId={group.my_member_id}
+            playSoundOnSubmit
             onSubmit={addPayment}
           />
         </section>
