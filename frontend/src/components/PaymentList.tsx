@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { Member, Payment } from "../types";
+import ConfirmDialog from "./ConfirmDialog";
 import PaymentForm, { type PaymentFormValues } from "./PaymentForm";
 
 const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
@@ -27,12 +28,13 @@ export default function PaymentList({
   onDelete,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   if (payments.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-slate-400">
-        まだ記録がありません。上から追加しましょう。
+        まだ記録がありません。
       </p>
     );
   }
@@ -116,9 +118,7 @@ export default function PaymentList({
                   編集
                 </button>
                 <button
-                  onClick={() => {
-                    if (confirm("この記録を削除しますか？")) onDelete(p.id);
-                  }}
+                  onClick={() => setDeletingId(p.id)}
                   className="text-red-400"
                 >
                   削除
@@ -137,6 +137,18 @@ export default function PaymentList({
             もっと見る（残り{remaining}件）
           </button>
         </div>
+      )}
+
+      {deletingId !== null && (
+        <ConfirmDialog
+          message="この記録を削除しますか？"
+          onCancel={() => setDeletingId(null)}
+          onConfirm={() => {
+            const id = deletingId;
+            setDeletingId(null);
+            onDelete(id);
+          }}
+        />
       )}
     </div>
   );
