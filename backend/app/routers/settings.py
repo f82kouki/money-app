@@ -1,6 +1,7 @@
 """ユーザー個人設定ルーター: 記録時のお祝い画像（アップロード/トグル）。"""
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import storage
 from ..db import get_db
@@ -60,7 +61,10 @@ async def upload_celebration_image(
             status_code=400, detail="対応していない画像形式です（JPEG/PNG/WebP）"
         )
 
-    user.celebration_image = storage.save_image(user.id, content, file.content_type)
+    # 2MB POST のアップロードはネットワーク I/O。event loop を塞がないよう threadpool へ。
+    user.celebration_image = await run_in_threadpool(
+        storage.save_image, user.id, content, file.content_type
+    )
     db.commit()
     db.refresh(user)
     return _to_out(user)
