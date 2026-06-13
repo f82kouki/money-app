@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import type { Member } from "../types";
+import { playChari } from "../utils/sound";
 
 export interface PaymentFormValues {
   payer_member_id: string;
@@ -21,6 +22,8 @@ interface Props {
   defaultPayerId: string;
   initial?: PaymentFormValues;
   submitLabel?: string;
+  /** 送信ボタン押下（バリデーション通過時）に“チャリン”を鳴らす。新規記録のみで使う想定。 */
+  playSoundOnSubmit?: boolean;
   onSubmit: (values: PaymentFormValues) => Promise<void>;
   onCancel?: () => void;
 }
@@ -30,6 +33,7 @@ export default function PaymentForm({
   defaultPayerId,
   initial,
   submitLabel = "記録する",
+  playSoundOnSubmit = false,
   onSubmit,
   onCancel,
 }: Props) {
@@ -48,6 +52,8 @@ export default function PaymentForm({
       setError("金額を入力してください");
       return;
     }
+    // バリデーション通過直後（＝有効な押下）に鳴らす。クリック起点なので自動再生制限もクリア。
+    if (playSoundOnSubmit) playChari();
     setSaving(true);
     try {
       await onSubmit({
