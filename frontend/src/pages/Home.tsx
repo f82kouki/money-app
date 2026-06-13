@@ -35,11 +35,18 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const g = await api.get<Group>("/api/groups/me");
+        // 3本は相互依存が無い（いずれも所属メンバーにのみ依存）ので並列取得する。
+        const [g, s, p] = await Promise.all([
+          api.get<Group>("/api/groups/me"),
+          api.get<Summary>("/api/summary"),
+          api.get<Payment[]>("/api/payments"),
+        ]);
         setGroup(g);
-        await refresh();
+        setSummary(s);
+        setPayments(p);
       } catch (err) {
-        // グループ未所属(409) なら作成/参加画面へ
+        // グループ未所属なら 3本とも 409 を返すため、Promise.all が 409 で reject する。
+        // その場合は作成/参加画面へ。
         if (err instanceof ApiError && err.status === 409) {
           navigate("/setup", { replace: true });
           return;
@@ -49,7 +56,7 @@ export default function Home() {
         setLoading(false);
       }
     })();
-  }, [navigate, refresh]);
+  }, [navigate]);
 
   useEffect(() => {
     // お祝い表示は付随機能なので、取得失敗は無視して記録機能には影響させない。

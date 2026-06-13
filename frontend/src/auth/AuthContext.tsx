@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { api, getToken, setToken } from "../api/client";
+import { ApiError, api, getToken, setToken } from "../api/client";
 
 interface TokenOut {
   access_token: string;
@@ -26,20 +26,23 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
-  // 起動時にトークンの有無を確認（/me で有効性チェック）
+  // 起動時の認証判定。トークンがあれば楽観的に認証済みとして即UIを出し、
+  // /me の応答待ちで「読み込み中…」を長く見せない。検証は背景で行う。
   useEffect(() => {
     const token = getToken();
     if (!token) {
       setAuthed(false);
       return;
     }
-    api
-      .get("/api/auth/me")
-      .then(() => setAuthed(true))
-      .catch(() => {
+    setAuthed(true);
+    // 401（トークン無効/期限切れ）のときだけログアウトする。
+    // ネットワーク/タイムアウト等の一時障害では楽観状態を維持する。
+    api.get("/api/auth/me").catch((err) => {
+      if (err instanceof ApiError && err.status === 401) {
         setToken(null);
         setAuthed(false);
-      });
+      }
+    });
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
