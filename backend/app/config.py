@@ -47,5 +47,19 @@ class Settings:
         "CORS_ORIGINS", "http://localhost:5178"
     ).split(",")
 
+    # --- Supabase Storage（お祝い画像の本番保存先）---
+    # 未設定なら storage.py が data URL(base64) にフォールバックする（ローカル開発用）。
+    supabase_url: str = os.getenv("SUPABASE_URL", "").rstrip("/")
+    supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
+    supabase_bucket: str = os.getenv("SUPABASE_BUCKET", "celebration")
+    # 署名URLの有効期限（秒）。開いたまま記録しても切れないよう長め(既定24h)。
+    supabase_signed_url_ttl: int = int(
+        os.getenv("SUPABASE_SIGNED_URL_TTL", str(60 * 60 * 24))
+    )
+
+    @property
+    def supabase_storage_enabled(self) -> bool:
+        return bool(self.supabase_url and self.supabase_service_key)
+
 
 settings = Settings()
