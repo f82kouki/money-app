@@ -54,6 +54,7 @@ def create_payment(
         amount=body.amount,
         category=body.category,
         paid_at=body.paid_at,
+        split_type=body.split_type,
         created_by=membership.user_id,
     )
     db.add(payment)
@@ -95,6 +96,8 @@ def update_payment(
         payment.category = body.category
     if body.paid_at is not None:
         payment.paid_at = body.paid_at
+    if body.split_type is not None:
+        payment.split_type = body.split_type
     db.commit()
     db.refresh(payment)
     return payment
@@ -127,9 +130,18 @@ def summary(
     ).all()
 
     totals_by_member: dict[str, int] = {m.id: 0 for m in members}
+    # 「相手が負担すべき額」を 2倍した整数(=倍円)で積む。割り勘の 1円端数で精度が
+    # 落ちないよう、合算してから最後に2で割る（全件割り勘なら従来の (差額)//2 と一致）。
+    #   割り勘 : 相手は amount/2 を負う → 倍円で amount を加算
+    #   立て替え: 相手は amount を全額負う → 倍円で amount*2 を加算
+    credit2_by_member: dict[str, int] = {m.id: 0 for m in members}
     for p in payments:
         totals_by_member[p.payer_member_id] = (
             totals_by_member.get(p.payer_member_id, 0) + p.amount
+        )
+        unit2 = p.amount * 2 if p.split_type == "tatekae" else p.amount
+        credit2_by_member[p.payer_member_id] = (
+            credit2_by_member.get(p.payer_member_id, 0) + unit2
         )
 
     totals = [
@@ -138,7 +150,7 @@ def summary(
     ]
     grand_total = sum(t.total for t in totals)
 
-    # 精算: 多く払った方が受け取る。差額の半分を少ない方が渡すと均等。
+    # 精算: 各支払いの「相手が負う額」を差し引きし、純額(net)を一方が渡せば精算完了。
     difference = 0
     settlement_amount = 0
     from_member_id: str | None = None
@@ -148,15 +160,19 @@ def summary(
     if len(totals) == 2:
         a, b = totals[0], totals[1]
         difference = abs(a.total - b.total)
-        settlement_amount = difference // 2
-        if difference == 0:
-            message = "ぴったり均等です 🎉" if grand_total > 0 else "まだ記録がありません"
+        diff2 = credit2_by_member[a.member_id] - credit2_by_member[b.member_id]
+        settlement_amount = abs(diff2) // 2
+        if grand_total == 0:
+            message = "まだ記録がありません"
+        elif settlement_amount == 0:
+            message = "貸し借りなし 🎉"
         else:
-            payer, receiver = (b, a) if a.total > b.total else (a, b)
+            # diff2 > 0 なら a が多く負担している → a が受け取り、b が渡す。
+            receiver, payer = (a, b) if diff2 > 0 else (b, a)
             from_member_id, to_member_id = payer.member_id, receiver.member_id
             message = (
                 f"{payer.display_name} が {receiver.display_name} に "
-                f"{settlement_amount:,} 円渡せば均等です"
+                f"{settlement_amount:,} 円で精算完了です"
             )
     elif len(totals) == 1 and grand_total > 0:
         message = "相手が参加するとここに精算額が出ます"

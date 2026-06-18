@@ -1,13 +1,15 @@
 import { useState, type FormEvent } from "react";
 
-import type { Member } from "../types";
+import type { Member, SplitType } from "../types";
 import { playChari } from "../utils/sound";
+import Button from "./Button";
 
 export interface PaymentFormValues {
   payer_member_id: string;
   amount: number;
   category: string;
   paid_at: string;
+  split_type: SplitType;
 }
 
 function todayStr(): string {
@@ -41,8 +43,16 @@ export default function PaymentForm({
   const [payer, setPayer] = useState(initial?.payer_member_id ?? defaultPayerId);
   const [category, setCategory] = useState(initial?.category ?? "");
   const [paidAt, setPaidAt] = useState(initial?.paid_at ?? todayStr());
+  const [splitType, setSplitType] = useState<SplitType>(
+    initial?.split_type ?? "warikan"
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const payerName =
+    members.find((m) => m.id === payer)?.display_name ?? "払った人";
+  const otherName =
+    members.find((m) => m.id !== payer)?.display_name ?? "相手";
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -61,6 +71,7 @@ export default function PaymentForm({
         amount: value,
         category: category.trim(),
         paid_at: paidAt,
+        split_type: splitType,
       });
       if (!initial) {
         // 新規追加後はフォームをリセット（連続入力しやすく）
@@ -107,6 +118,37 @@ export default function PaymentForm({
         ))}
       </div>
 
+      {/* 割り方（割り勘 / 立て替え） */}
+      <div>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              { value: "warikan", label: "割り勘" },
+              { value: "tatekae", label: "立て替え" },
+            ] as const
+          ).map((opt) => (
+            <button
+              type="button"
+              key={opt.value}
+              onClick={() => setSplitType(opt.value)}
+              aria-pressed={splitType === opt.value}
+              className={`rounded-xl py-2.5 text-base font-semibold transition-colors ${
+                splitType === opt.value
+                  ? "bg-cta text-cta-fg shadow-sm"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {splitType === "tatekae" && (
+          <p className="mt-1 px-1 text-xs text-slate-500">
+            {payerName} が {otherName} の分を全額立て替え（{otherName} が満額返す）。
+          </p>
+        )}
+      </div>
+
       {/* 項目・日付 */}
       <input
         placeholder="項目・メモ（例: 夕食）"
@@ -126,21 +168,13 @@ export default function PaymentForm({
 
       <div className="flex gap-2">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 rounded-xl bg-slate-100 py-3 text-base font-semibold text-slate-600"
-          >
+          <Button variant="secondary" onClick={onCancel} className="flex-1">
             キャンセル
-          </button>
+          </Button>
         )}
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex-1 rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={saving} className="flex-1">
           {saving ? "保存中…" : submitLabel}
-        </button>
+        </Button>
       </div>
     </form>
   );

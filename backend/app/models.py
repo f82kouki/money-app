@@ -13,6 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     false,
 )
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -49,6 +50,30 @@ class User(Base):
     memberships: Mapped[list["GroupMember"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    # お祝い画像（複数枚）。画像本体(data URL)は重いので relationship 側の
+    # クエリで明示ロードする（User の毎リクエスト select には載らない）。
+    celebration_images: Mapped[list["CelebrationImage"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="CelebrationImage.created_at.asc()",
+    )
+
+
+class CelebrationImage(Base):
+    """記録時に表示するお祝い画像（1ユーザー複数枚）。
+
+    image は storage.py が返す参照文字列:
+      ローカル保存=data URL / 本番(Supabase)=Storage オブジェクトキー。
+    """
+
+    __tablename__ = "celebration_images"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    image: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    user: Mapped[User] = relationship(back_populates="celebration_images")
 
 
 class Group(Base):
@@ -63,6 +88,9 @@ class Group(Base):
         back_populates="group", cascade="all, delete-orphan"
     )
     payments: Mapped[list["Payment"]] = relationship(
+        back_populates="group", cascade="all, delete-orphan"
+    )
+    messages: Mapped[list["Message"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"
     )
 
@@ -91,8 +119,30 @@ class Payment(Base):
     amount: Mapped[int] = mapped_column(Integer)  # 円（整数）
     category: Mapped[str] = mapped_column(String(100), default="")
     paid_at: Mapped[date] = mapped_column(Date)
+    # 精算の種別。"warikan"=2人で折半 / "tatekae"=相手が全額負担(立て替え/貸し)。
+    # 既存データは全て折半として扱うため既定 warikan。
+    split_type: Mapped[str] = mapped_column(
+        String(16), default="warikan", server_default=sa_text("'warikan'")
+    )
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     group: Mapped[Group] = relationship(back_populates="payments")
     payer: Mapped[GroupMember] = relationship()
+
+
+class Message(Base):
+    """グループ内のメッセージ（2人のミニチャット）。"""
+
+    __tablename__ = "messages"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    group_id: Mapped[str] = mapped_column(ForeignKey("groups.id"), index=True)
+    sender_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.id"))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, index=True
+    )
+
+    group: Mapped[Group] = relationship(back_populates="messages")
+    sender: Mapped[GroupMember] = relationship()

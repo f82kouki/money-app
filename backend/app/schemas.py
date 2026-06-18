@@ -1,5 +1,6 @@
 """Pydantic v2 の入出力スキーマ。"""
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,11 +51,22 @@ class MemberUpdateIn(BaseModel):
     display_name: str = Field(min_length=1, max_length=50)
 
 
+class GroupUpdateIn(BaseModel):
+    # おさいふの名前（タイトル）編集。
+    name: str = Field(min_length=1, max_length=100)
+
+
 # ---- お祝い画像（記録時のダイアログ） ----
+class CelebrationImageOut(BaseModel):
+    id: str
+    # 表示用URL（ローカル=data URL / 本番=署名URL）。
+    url: str
+
+
 class CelebrationOut(BaseModel):
     celebration_enabled: bool
-    # 表示用URL（ローカル=data URL / 本番=署名URL）。未設定なら null。
-    celebration_image_url: str | None
+    # 保存済みのお祝い画像（複数枚）。記録時はこの中から1枚を表示する。
+    images: list[CelebrationImageOut]
 
 
 class CelebrationToggleIn(BaseModel):
@@ -72,11 +84,16 @@ class GroupOut(BaseModel):
 
 
 # ---- 支払い ----
+# 精算の種別: warikan=2人で折半 / tatekae=相手が全額負担(立て替え/貸し)
+SplitType = Literal["warikan", "tatekae"]
+
+
 class PaymentIn(BaseModel):
     payer_member_id: str
     amount: int = Field(gt=0)
     category: str = Field(default="", max_length=100)
     paid_at: date
+    split_type: SplitType = "warikan"
 
 
 class PaymentUpdateIn(BaseModel):
@@ -84,6 +101,7 @@ class PaymentUpdateIn(BaseModel):
     amount: int | None = Field(default=None, gt=0)
     category: str | None = Field(default=None, max_length=100)
     paid_at: date | None = None
+    split_type: SplitType | None = None
 
 
 class PaymentOut(BaseModel):
@@ -93,6 +111,20 @@ class PaymentOut(BaseModel):
     amount: int
     category: str
     paid_at: date
+    split_type: SplitType
+    created_at: datetime
+
+
+# ---- メッセージ ----
+class MessageIn(BaseModel):
+    body: str = Field(min_length=1, max_length=1000)
+
+
+class MessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    sender_member_id: str
+    body: str
     created_at: datetime
 
 

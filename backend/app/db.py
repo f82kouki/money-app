@@ -1,7 +1,7 @@
 """SQLAlchemy のエンジン・セッション・Base 定義。"""
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -68,9 +68,64 @@ def _ensure_user_celebration_columns() -> None:
             )
 
 
+def _ensure_payment_columns() -> None:
+    """payments テーブルに split_type 列を冪等に追加する。
+
+    既存行は全て従来どおり「割り勘(折半)」として扱うため既定 'warikan'。
+    _ensure_user_celebration_columns と同じく Alembic 無し環境の軽量マイグレーション。
+    """
+    insp = inspect(engine)
+    if "payments" not in insp.get_table_names():
+        return  # テーブルは create_all 側で作られる
+    if "split_type" in {c["name"] for c in insp.get_columns("payments")}:
+        return
+    is_sqlite = engine.dialect.name == "sqlite"
+    if_not_exists = "" if is_sqlite else "IF NOT EXISTS "
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            f"ALTER TABLE payments ADD COLUMN {if_not_exists}split_type "
+            "VARCHAR(16) NOT NULL DEFAULT 'warikan'"
+        )
+
+
+def _migrate_celebration_image_to_table() -> None:
+    """旧: users.celebration_image(単数) → 新: celebration_images(複数) に移行する。
+
+    既存の1枚を celebration_images に1行として取り込む。冪等にするため、その user に
+    既に行があれば何もしない。取り込んだら旧カラムを None にして二重移行を防ぐ。
+    参照文字列(data URL / Storageキー)はそのまま使えるので Storage 実体の移動は不要。
+    """
+    from .models import CelebrationImage, User
+
+    with SessionLocal() as db:
+        rows = db.execute(
+            select(User.id, User.celebration_image).where(
+                User.celebration_image.isnot(None)
+            )
+        ).all()
+        if not rows:
+            return
+        migrated_user_ids = set(
+            db.scalars(select(CelebrationImage.user_id).distinct()).all()
+        )
+        changed = False
+        for user_id, image in rows:
+            if user_id in migrated_user_ids:
+                continue
+            db.add(CelebrationImage(user_id=user_id, image=image))
+            db.query(User).filter(User.id == user_id).update(
+                {"celebration_image": None}
+            )
+            changed = True
+        if changed:
+            db.commit()
+
+
 def init_db() -> None:
     """全テーブルを作成する（make db-init から呼ぶ）。"""
     from . import models  # noqa: F401  モデル登録のため import
 
     Base.metadata.create_all(bind=engine)
     _ensure_user_celebration_columns()
+    _ensure_payment_columns()
+    _migrate_celebration_image_to_table()

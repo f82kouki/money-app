@@ -64,6 +64,7 @@ export default function PaymentList({
                 amount: p.amount,
                 category: p.category,
                 paid_at: p.paid_at,
+                split_type: p.split_type,
               }}
               submitLabel="更新する"
               onCancel={() => setEditingId(null)}
@@ -98,7 +99,14 @@ export default function PaymentList({
                     : "rounded-tl-sm bg-white text-slate-800"
                 }`}
               >
-                <div className="text-lg font-bold">{yen(p.amount)}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">{yen(p.amount)}</span>
+                  {p.split_type === "tatekae" && (
+                    <span className="shrink-0 rounded-full bg-cta px-1.5 py-0.5 text-[10px] font-bold text-cta-fg">
+                      立替
+                    </span>
+                  )}
+                </div>
                 {p.category && (
                   <div className="mt-0.5 text-sm opacity-80">{p.category}</div>
                 )}

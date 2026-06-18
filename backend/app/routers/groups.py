@@ -13,6 +13,7 @@ from ..schemas import (
     GroupCreateIn,
     GroupJoinIn,
     GroupOut,
+    GroupUpdateIn,
     MemberOut,
     MemberUpdateIn,
 )
@@ -111,6 +112,21 @@ def my_group(
     db: Session = Depends(get_db),
 ) -> GroupOut:
     group = db.get(Group, membership.group_id)
+    return _serialize_group(group, membership.id)
+
+
+@router.patch("/groups/me", response_model=GroupOut)
+def update_my_group(
+    body: GroupUpdateIn,
+    membership: GroupMember = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> GroupOut:
+    """おさいふの名前(タイトル)を変更する。2人のどちらからでも可。"""
+    group = db.get(Group, membership.group_id)
+    group.name = body.name
+    db.commit()
+    db.refresh(group)
+    logger.info("おさいふ名変更: '%s' code=%s", group.name, group.invite_code)
     return _serialize_group(group, membership.id)
 
 

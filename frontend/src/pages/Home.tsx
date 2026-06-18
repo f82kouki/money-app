@@ -70,9 +70,13 @@ export default function Home() {
     await api.post<Payment>("/api/payments", values);
     await refresh();
     // 記録成功後にお祝い画像ダイアログを表示（マウント時に取得済みの設定を使う）。
-    // 編集(updatePayment)では表示しない。
-    if (celebration?.celebration_enabled && celebration.celebration_image_url) {
-      setCelebrationUrl(celebration.celebration_image_url);
+    // 編集(updatePayment)では表示しない。複数枚あればランダムに1枚選ぶ。
+    if (celebration?.celebration_enabled && celebration.images.length > 0) {
+      const pick =
+        celebration.images[
+          Math.floor(Math.random() * celebration.images.length)
+        ];
+      setCelebrationUrl(pick.url);
     }
   }
 
@@ -140,7 +144,7 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 py-4">
         <img
           src="/favicon.png"
-          alt="warikan"
+          alt="ねここあらの財布"
           className="h-9 w-9 rounded-xl object-cover"
         />
         <button
@@ -265,6 +269,27 @@ export default function Home() {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
             設定
+          </Link>
+
+          <Link
+            to="/messages"
+            onClick={closeMenu}
+            className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-slate-700 hover:bg-primary-light"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-slate-500"
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+            </svg>
+            メッセージ
           </Link>
 
           <div className="my-2 mx-6 border-t border-slate-200" />

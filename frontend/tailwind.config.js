@@ -19,6 +19,12 @@ export default {
           dark: "#FFD0E0",
           text: "#C2185B",
         },
+        // 主役ボタン(CTA)専用のローズ。淡い primary と差をつけて「押すボタン」を明確にする。
+        cta: {
+          DEFAULT: "#EC4899",
+          hover: "#DB2777",
+          fg: "#FFFFFF",
+        },
       },
     },
   },

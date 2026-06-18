@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import Button from "../components/Button";
 import type { Group } from "../types";
 
 type Mode = "create" | "join";
@@ -107,13 +108,9 @@ export default function GroupSetup() {
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
-        >
+        <Button type="submit" fullWidth disabled={loading}>
           {loading ? "処理中…" : mode === "create" ? "グループを作成" : "参加する"}
-        </button>
+        </Button>
       </form>
 
       <button
