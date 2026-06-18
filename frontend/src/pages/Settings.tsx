@@ -66,9 +66,11 @@ export default function Settings() {
     setCelebMessage("");
     setCelebEnabled(next); // 楽観的に反映
     try {
-      const c = await api.patch<CelebrationSettings>("/api/me/celebration", {
-        celebration_enabled: next,
-      });
+      // トグルは軽量応答（enabled のみ。画像URLの再署名はしない）。
+      const c = await api.patch<{ celebration_enabled: boolean }>(
+        "/api/me/celebration",
+        { celebration_enabled: next }
+      );
       setCelebEnabled(c.celebration_enabled);
     } catch (err) {
       setCelebEnabled(!next); // 失敗したら戻す

@@ -106,6 +106,11 @@ export default function PaymentList({
                       立替
                     </span>
                   )}
+                  {p.settlement_id && (
+                    <span className="shrink-0 rounded-full bg-slate-300 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                      精算済
+                    </span>
+                  )}
                 </div>
                 {p.category && (
                   <div className="mt-0.5 text-sm opacity-80">{p.category}</div>

@@ -22,6 +22,16 @@ export interface Payment {
   category: string;
   paid_at: string; // YYYY-MM-DD
   split_type: SplitType;
+  settlement_id: string | null; // 精算済みなら settlement の ID（未精算は null）
+  created_at: string;
+}
+
+export interface Settlement {
+  id: string;
+  from_member_id: string | null;
+  to_member_id: string | null;
+  amount: number;
+  settled_by_member_id: string;
   created_at: string;
 }
 

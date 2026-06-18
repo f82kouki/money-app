@@ -35,6 +35,19 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
+    # トークン世代。ログアウト時に +1 して、発行済み JWT を一括失効させる（L3）。
+    # 既存トークンは "ver" を持たないため、検証側は欠落を 0 とみなし互換を保つ。
+    token_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=sa_text("0"), nullable=False
+    )
+    # ログイン失敗回数とロック解除時刻（L1: 簡易レート制限）。成功でリセットする。
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=sa_text("0"), nullable=False
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # お祝い画像（記録時のダイアログ）。celebration_image は参照文字列:
     #   ローカル保存=data URL / 本番(Supabase, Issue #1)=Storage パス
     celebration_enabled: Mapped[bool] = mapped_column(
@@ -93,6 +106,9 @@ class Group(Base):
     messages: Mapped[list["Message"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"
     )
+    settlements: Mapped[list["Settlement"]] = relationship(
+        back_populates="group", cascade="all, delete-orphan"
+    )
 
 
 class GroupMember(Base):
@@ -102,7 +118,11 @@ class GroupMember(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     group_id: Mapped[str] = mapped_column(ForeignKey("groups.id"), index=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    # このアプリは「1ユーザー=1グループ」が前提。user_id 単独に一意制約を張り、
+    # 作成/参加の競合(TOCTOU)で二重所属が生じないよう DB レベルで担保する（M1）。
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id"), unique=True, index=True
+    )
     display_name: Mapped[str] = mapped_column(String(50))
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -124,11 +144,37 @@ class Payment(Base):
     split_type: Mapped[str] = mapped_column(
         String(16), default="warikan", server_default=sa_text("'warikan'")
     )
+    # 精算で「締めた」支払いを指す。NULL=未精算（集計対象）。精算実行時にまとめて
+    # その時点の settlement.id を入れ、以降は集計から外す（L8）。履歴としては残す。
+    settlement_id: Mapped[str | None] = mapped_column(
+        ForeignKey("settlements.id"), nullable=True, index=True
+    )
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     group: Mapped[Group] = relationship(back_populates="payments")
     payer: Mapped[GroupMember] = relationship()
+
+
+class Settlement(Base):
+    """精算（貸し借りを清算して区切る）の記録。
+
+    実行時点の純額(amount)と向き(from→to)のスナップショット。これを作ると、
+    その時点の未精算 payment 群に settlement_id が入り、集計対象から外れる（L8）。
+    """
+
+    __tablename__ = "settlements"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    group_id: Mapped[str] = mapped_column(ForeignKey("groups.id"), index=True)
+    settled_by_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.id"))
+    # 渡す側 / 受け取る側のメンバーID（貸し借りなしで精算した場合は両方 None）。
+    from_member_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    to_member_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    amount: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    group: Mapped[Group] = relationship(back_populates="settlements")
 
 
 class Message(Base):

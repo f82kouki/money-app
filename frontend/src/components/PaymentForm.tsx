@@ -12,6 +12,9 @@ export interface PaymentFormValues {
   split_type: SplitType;
 }
 
+// バックエンド(schemas.py MAX_AMOUNT)と揃える。桁あふれ/過大入力をサーバー到達前に弾く。
+const MAX_AMOUNT = 1_000_000_000;
+
 function todayStr(): string {
   const d = new Date();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -60,6 +63,14 @@ export default function PaymentForm({
     const value = parseInt(amount, 10);
     if (!value || value <= 0) {
       setError("金額を入力してください");
+      return;
+    }
+    if (value > MAX_AMOUNT) {
+      setError(`金額は ${MAX_AMOUNT.toLocaleString("ja-JP")} 円以下にしてください`);
+      return;
+    }
+    if (!paidAt) {
+      setError("日付を入力してください");
       return;
     }
     // バリデーション通過直後（＝有効な押下）に鳴らす。クリック起点なので自動再生制限もクリア。
@@ -161,6 +172,7 @@ export default function PaymentForm({
         type="date"
         value={paidAt}
         onChange={(e) => setPaidAt(e.target.value)}
+        required
         className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
       />
 

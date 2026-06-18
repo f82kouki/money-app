@@ -3,6 +3,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -63,10 +64,19 @@ def create_group(
         group_id=group.id, user_id=user.id, display_name=body.display_name
     )
     db.add(member)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # user_id 一意制約（M1）による最終防壁。同時実行/二重サブミットで
+        # 事前チェックをすり抜けても、ここで二重所属を防ぐ。
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="既にグループに所属しています",
+        )
     db.refresh(group)
     logger.info(
-        "グループ作成: '%s' code=%s by %s", group.name, group.invite_code, user.email
+        "グループ作成: '%s' code=%s by user=%s", group.name, group.invite_code, user.id
     )
     return _serialize_group(group, member.id)
 
@@ -100,9 +110,19 @@ def join_group(
         group_id=group.id, user_id=user.id, display_name=body.display_name
     )
     db.add(member)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # user_id 一意制約（M1）による最終防壁。
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="既にグループに所属しています",
+        )
     db.refresh(group)
-    logger.info("グループ参加: '%s' code=%s by %s", group.name, group.invite_code, user.email)
+    logger.info(
+        "グループ参加: '%s' code=%s by user=%s", group.name, group.invite_code, user.id
+    )
     return _serialize_group(group, member.id)
 
 

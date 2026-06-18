@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import CelebrationDialog from "../components/CelebrationDialog";
+import ConfirmDialog from "../components/ConfirmDialog";
 import PaymentForm, { type PaymentFormValues } from "../components/PaymentForm";
 import PaymentList from "../components/PaymentList";
 import SummaryCard from "../components/SummaryCard";
@@ -18,6 +19,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingSettle, setConfirmingSettle] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const [settleError, setSettleError] = useState("");
   const [celebrationUrl, setCelebrationUrl] = useState<string | null>(null);
   // お祝い設定はマウント時に1回だけ取得して保持する（記録のたびに再取得しない）。
   // 設定変更は別ルート(/settings)でのみ起き、戻ると Home が再マウントされ再取得される。
@@ -88,6 +92,21 @@ export default function Home() {
   async function deletePayment(id: string) {
     await api.delete(`/api/payments/${id}`);
     await refresh();
+  }
+
+  // 現在の貸し借りを精算して集計をリセットする（履歴は残る）。
+  async function doSettle() {
+    setSettleError("");
+    setSettling(true);
+    try {
+      await api.post("/api/settlements");
+      await refresh();
+    } catch (err) {
+      setSettleError(err instanceof ApiError ? err.message : "精算に失敗しました");
+    } finally {
+      setSettling(false);
+      setConfirmingSettle(false);
+    }
   }
 
   if (loading) {
@@ -329,7 +348,17 @@ export default function Home() {
           </p>
         </section>
 
-        <SummaryCard summary={summary} />
+        <SummaryCard
+          summary={summary}
+          settling={settling}
+          onSettle={() => {
+            setSettleError("");
+            setConfirmingSettle(true);
+          }}
+        />
+        {settleError && (
+          <p className="px-1 text-sm text-red-600">{settleError}</p>
+        )}
 
         <section>
           <h2 className="mb-2 text-sm font-semibold text-slate-500">支払いを記録</h2>
@@ -357,6 +386,15 @@ export default function Home() {
         <CelebrationDialog
           image={celebrationUrl}
           onClose={() => setCelebrationUrl(null)}
+        />
+      )}
+
+      {confirmingSettle && (
+        <ConfirmDialog
+          message="現在の貸し借りを精算して集計をリセットします。よろしいですか？（記録の履歴は残ります）"
+          confirmLabel="精算する"
+          onCancel={() => setConfirmingSettle(false)}
+          onConfirm={doSettle}
         />
       )}
     </div>

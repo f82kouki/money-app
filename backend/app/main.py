@@ -25,7 +25,8 @@ app = FastAPI(title="warikan API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    # 認証は Authorization ヘッダ(Bearer)で行い Cookie を使わないため資格情報の共有は不要。
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

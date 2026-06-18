@@ -14,6 +14,11 @@ from .models import User
 
 _bearer = HTTPBearer(auto_error=True)
 
+# 存在しないユーザーでも bcrypt 検証を1回回して応答時間を平準化するためのダミー。
+# これが無いと「ユーザー不在=即 return」で処理が速く、タイミングでメール存在を
+# 推測されてしまう（L2: ユーザー列挙の緩和）。ライブラリ既定コストで生成する。
+_DUMMY_HASH = bcrypt.hashpw(b"timing-equalizer", bcrypt.gensalt()).decode("utf-8")
+
 
 def hash_password(password: str) -> str:
     # bcrypt は 72 バイトまで。エンコードして安全にハッシュ。
@@ -29,11 +34,17 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str) -> str:
+def dummy_verify_password(password: str) -> None:
+    """ユーザー不在時に呼び、本物の検証と同等の時間を使って列挙を防ぐ（L2）。"""
+    verify_password(password, _DUMMY_HASH)
+
+
+def create_access_token(user: User) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes
     )
-    payload = {"sub": user_id, "exp": expire}
+    # ver(token_version) を埋め、ログアウトで世代を進めると既存トークンを失効できる（L3）。
+    payload = {"sub": user.id, "exp": expire, "ver": user.token_version}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
@@ -59,5 +70,9 @@ def get_current_user(
         raise invalid
     user = db.scalar(select(User).where(User.id == user_id))
     if user is None:
+        raise invalid
+    # トークン世代の照合（L3）。ログアウトで token_version を進めると不一致になり失効。
+    # 旧トークンは "ver" を持たないため欠落は 0 とみなして互換を保つ。
+    if payload.get("ver", 0) != user.token_version:
         raise invalid
     return user

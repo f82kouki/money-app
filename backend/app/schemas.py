@@ -73,6 +73,11 @@ class CelebrationToggleIn(BaseModel):
     celebration_enabled: bool
 
 
+class CelebrationStateOut(BaseModel):
+    # トグル応答用の軽量モデル。画像URLの署名(ネットワーク往復)を伴わない（M4）。
+    celebration_enabled: bool
+
+
 class GroupOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
@@ -87,10 +92,14 @@ class GroupOut(BaseModel):
 # 精算の種別: warikan=2人で折半 / tatekae=相手が全額負担(立て替え/貸し)
 SplitType = Literal["warikan", "tatekae"]
 
+# 金額の上限（円）。割り勘用途には十分な10億。Postgres の INTEGER(最大約21.4億)に
+# 収まる範囲に抑え、桁あふれによる 500 を防ぐ。フロント側にも同じ上限を持たせる。
+MAX_AMOUNT = 1_000_000_000
+
 
 class PaymentIn(BaseModel):
     payer_member_id: str
-    amount: int = Field(gt=0)
+    amount: int = Field(gt=0, le=MAX_AMOUNT)
     category: str = Field(default="", max_length=100)
     paid_at: date
     split_type: SplitType = "warikan"
@@ -98,7 +107,7 @@ class PaymentIn(BaseModel):
 
 class PaymentUpdateIn(BaseModel):
     payer_member_id: str | None = None
-    amount: int | None = Field(default=None, gt=0)
+    amount: int | None = Field(default=None, gt=0, le=MAX_AMOUNT)
     category: str | None = Field(default=None, max_length=100)
     paid_at: date | None = None
     split_type: SplitType | None = None
@@ -112,6 +121,20 @@ class PaymentOut(BaseModel):
     category: str
     paid_at: date
     split_type: SplitType
+    # 精算済みなら紐づく settlement の ID。未精算は None（集計対象）。
+    settlement_id: str | None = None
+    created_at: datetime
+
+
+# ---- 精算（リセット） ----
+class SettlementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    # 渡す側 / 受け取る側（貸し借りなしで締めた場合は両方 None）。
+    from_member_id: str | None
+    to_member_id: str | None
+    amount: int
+    settled_by_member_id: str
     created_at: datetime
 
 

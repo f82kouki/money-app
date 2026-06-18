@@ -6,6 +6,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from .config import settings
+from .logging_config import logger
 
 _url = settings.database_url
 _connect_args: dict = {}
@@ -88,6 +89,83 @@ def _ensure_payment_columns() -> None:
         )
 
 
+def _ensure_user_auth_columns() -> None:
+    """users に認証関連カラムを冪等に追加する（L1 レート制限 / L3 トークン失効）。
+
+    token_version / failed_login_attempts は NOT NULL DEFAULT 0、locked_until は NULL 可。
+    既存行は全て「失効なし・ロックなし」として扱う。
+    """
+    insp = inspect(engine)
+    if "users" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("users")}
+    is_sqlite = engine.dialect.name == "sqlite"
+    if_not_exists = "" if is_sqlite else "IF NOT EXISTS "
+    with engine.begin() as conn:
+        if "token_version" not in cols:
+            conn.exec_driver_sql(
+                f"ALTER TABLE users ADD COLUMN {if_not_exists}token_version "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
+        if "failed_login_attempts" not in cols:
+            conn.exec_driver_sql(
+                f"ALTER TABLE users ADD COLUMN {if_not_exists}failed_login_attempts "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
+        if "locked_until" not in cols:
+            conn.exec_driver_sql(
+                f"ALTER TABLE users ADD COLUMN {if_not_exists}locked_until "
+                "TIMESTAMP WITH TIME ZONE"
+                if not is_sqlite
+                else "ALTER TABLE users ADD COLUMN locked_until DATETIME"
+            )
+
+
+def _ensure_payment_settlement_column() -> None:
+    """payments に settlement_id 列を冪等に追加する（L8 精算リセット）。
+
+    既存行は全て未精算(NULL)として扱う。集計は settlement_id IS NULL のみ対象。
+    """
+    insp = inspect(engine)
+    if "payments" not in insp.get_table_names():
+        return
+    if "settlement_id" in {c["name"] for c in insp.get_columns("payments")}:
+        return
+    is_sqlite = engine.dialect.name == "sqlite"
+    if_not_exists = "" if is_sqlite else "IF NOT EXISTS "
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            f"ALTER TABLE payments ADD COLUMN {if_not_exists}settlement_id VARCHAR(32)"
+        )
+
+
+def _ensure_group_member_user_unique() -> None:
+    """group_members.user_id に一意インデックスを冪等に張る（M1: 1人=1グループ）。
+
+    既存データに重複 user_id があると作成に失敗するため、先に検出してその場合は
+    作成をスキップ＋警告する（自動マージはしない。手動クリーンアップを促す）。
+    SQLite/Postgres とも CREATE UNIQUE INDEX IF NOT EXISTS をサポートする。
+    """
+    insp = inspect(engine)
+    if "group_members" not in insp.get_table_names():
+        return
+    with engine.begin() as conn:
+        dups = conn.exec_driver_sql(
+            "SELECT user_id FROM group_members GROUP BY user_id HAVING COUNT(*) > 1"
+        ).fetchall()
+        if dups:
+            logger.warning(
+                "group_members に重複 user_id があり一意制約を作成できません: %s "
+                "（手動クリーンアップ後に再実行してください）",
+                [d[0] for d in dups],
+            )
+            return
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_group_members_user "
+            "ON group_members (user_id)"
+        )
+
+
 def _migrate_celebration_image_to_table() -> None:
     """旧: users.celebration_image(単数) → 新: celebration_images(複数) に移行する。
 
@@ -128,4 +206,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_user_celebration_columns()
     _ensure_payment_columns()
+    _ensure_user_auth_columns()
+    _ensure_payment_settlement_column()
+    _ensure_group_member_user_unique()
     _migrate_celebration_image_to_table()
