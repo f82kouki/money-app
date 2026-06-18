@@ -24,12 +24,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // おさいふの名前（タイトル）
-  const [walletName, setWalletName] = useState("");
-  const [walletMessage, setWalletMessage] = useState("");
-  const [walletError, setWalletError] = useState("");
-  const [walletSaving, setWalletSaving] = useState(false);
-
   // お祝い画像（記録時のダイアログ・複数枚）
   const [celebEnabled, setCelebEnabled] = useState(false);
   const [celebImages, setCelebImages] = useState<CelebrationImage[]>([]);
@@ -43,7 +37,6 @@ export default function Settings() {
       .get<Group>("/api/groups/me")
       .then((g) => {
         setGroup(g);
-        setWalletName(g.name);
         const me = g.members.find((m) => m.id === g.my_member_id);
         setDisplayName(me?.display_name ?? "");
       })
@@ -138,22 +131,6 @@ export default function Settings() {
     }
   }
 
-  async function saveWalletName() {
-    setWalletError("");
-    setWalletMessage("");
-    setWalletSaving(true);
-    try {
-      const g = await api.patch<Group>("/api/groups/me", { name: walletName });
-      setGroup(g);
-      setWalletName(g.name);
-      setWalletMessage("おさいふの名前を更新しました");
-    } catch (err) {
-      setWalletError(err instanceof ApiError ? err.message : "更新に失敗しました");
-    } finally {
-      setWalletSaving(false);
-    }
-  }
-
   async function copyCode() {
     if (!group) return;
     try {
@@ -182,33 +159,6 @@ export default function Settings() {
       </header>
 
       <div className="space-y-5">
-        {/* おさいふの名前（タイトル） */}
-        <section className="rounded-2xl bg-white p-4 shadow">
-          <h2 className="mb-2 text-sm font-semibold text-slate-500">
-            おさいふの名前
-          </h2>
-          <input
-            value={walletName}
-            onChange={(e) => setWalletName(e.target.value)}
-            maxLength={100}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
-          />
-          {walletMessage && (
-            <p className="mt-2 text-sm text-green-600">{walletMessage}</p>
-          )}
-          {walletError && (
-            <p className="mt-2 text-sm text-red-600">{walletError}</p>
-          )}
-          <Button
-            fullWidth
-            onClick={saveWalletName}
-            disabled={walletSaving || walletName.trim().length === 0}
-            className="mt-3"
-          >
-            {walletSaving ? "保存中…" : "保存"}
-          </Button>
-        </section>
-
         {/* 表示名編集 */}
         <section className="rounded-2xl bg-white p-4 shadow">
           <h2 className="mb-2 text-sm font-semibold text-slate-500">あなたの表示名</h2>
