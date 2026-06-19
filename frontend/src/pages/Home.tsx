@@ -171,7 +171,7 @@ export default function Home() {
           onClick={() => setMenuOpen(true)}
           aria-label="メニュー"
           aria-expanded={menuOpen}
-          className="rounded-full bg-white p-2 text-primary-text shadow-sm"
+          className="rounded-full bg-white p-2 text-primary-text shadow-sm active:bg-primary-light"
         >
           <svg
             width="22"

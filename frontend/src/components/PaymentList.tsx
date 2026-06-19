@@ -102,7 +102,7 @@ export default function PaymentList({
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-bold">{yen(p.amount)}</span>
                   {p.split_type === "tatekae" && (
-                    <span className="shrink-0 rounded-full bg-cta px-1.5 py-0.5 text-[10px] font-bold text-cta-fg">
+                    <span className="shrink-0 rounded-full border border-primary-mid px-1.5 py-0.5 text-[10px] font-bold text-primary-text">
                       立替
                     </span>
                   )}
@@ -145,7 +145,7 @@ export default function PaymentList({
         <div className="flex justify-center">
           <button
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-primary-text shadow-sm active:bg-primary-light"
+            className="rounded-full bg-cta px-5 py-2 text-sm font-bold text-cta-fg shadow-sm hover:bg-cta-hover active:bg-cta-hover"
           >
             もっと見る（残り{remaining}件）
           </button>

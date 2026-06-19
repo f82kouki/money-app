@@ -1,4 +1,5 @@
 import type { Summary } from "../types";
+import Button from "./Button";
 
 const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
 
@@ -42,7 +43,8 @@ export default function SummaryCard({ summary, onSettle, settling }: Props) {
         )}
       </div>
 
-      <div className="mt-3 rounded-xl bg-white/60 px-4 py-3 text-center">
+      {/* 精算額の「表示」。ボタンと誤認されないよう白い角丸ボックスは使わない。 */}
+      <div className="mt-3 px-2 py-1 text-center">
         {hasSettlement ? (
           <div className="flex items-center justify-center gap-2 font-bold">
             <span className="max-w-[35%] truncate">
@@ -61,16 +63,17 @@ export default function SummaryCard({ summary, onSettle, settling }: Props) {
         )}
       </div>
 
-      {/* 精算（リセット）。貸し借りがあるときだけ出す。 */}
+      {/* 精算（リセット）。貸し借りがあるときだけ出す。鮮やかピンクで明確に。 */}
       {hasSettlement && onSettle && (
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          fullWidth
           onClick={onSettle}
           disabled={settling}
-          className="mt-3 w-full rounded-xl bg-white py-3 text-base font-bold text-primary-text shadow-sm active:bg-primary-light disabled:opacity-50"
+          className="mt-3"
         >
           {settling ? "精算中…" : "精算する（リセット）"}
-        </button>
+        </Button>
       )}
     </div>
   );

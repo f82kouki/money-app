@@ -199,7 +199,7 @@ export default function Settings() {
               aria-checked={celebEnabled}
               onClick={() => toggleCeleb(!celebEnabled)}
               className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-colors ${
-                celebEnabled ? "bg-primary-mid" : "bg-slate-300"
+                celebEnabled ? "bg-cta" : "bg-slate-300"
               }`}
             >
               <span
@@ -277,7 +277,7 @@ export default function Settings() {
               </p>
               <button
                 onClick={copyCode}
-                className="w-full rounded-xl bg-slate-100 py-4 text-center text-2xl font-mono font-bold tracking-widest text-slate-800"
+                className="w-full rounded-xl border-2 border-primary-mid bg-white py-4 text-center text-2xl font-mono font-bold tracking-widest text-primary-text active:bg-primary-light"
               >
                 {group.invite_code}
               </button>

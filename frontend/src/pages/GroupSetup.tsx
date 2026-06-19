@@ -48,19 +48,23 @@ export default function GroupSetup() {
         グループを作成する
       </h1>
 
-      <div className="mb-6 flex rounded-xl bg-slate-200 p-1">
+      <div className="mb-6 flex rounded-xl bg-primary-light p-1">
         <button
           onClick={() => setMode("create")}
-          className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-            mode === "create" ? "bg-white text-primary-text shadow" : "text-slate-500"
+          className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
+            mode === "create"
+              ? "bg-cta text-cta-fg shadow"
+              : "text-primary-text"
           }`}
         >
           新しく作る
         </button>
         <button
           onClick={() => setMode("join")}
-          className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-            mode === "join" ? "bg-white text-primary-text shadow" : "text-slate-500"
+          className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
+            mode === "join"
+              ? "bg-cta text-cta-fg shadow"
+              : "text-primary-text"
           }`}
         >
           招待コードで参加

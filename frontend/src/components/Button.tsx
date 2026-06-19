@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost";
+type Variant = "primary" | "secondary" | "danger" | "ghost" | "outline";
 
 // 共通ボタン。1画面の「主役」は variant="primary"（ローズ塗り）で、補助は secondary、
 // 削除は danger に揃える。インラインのコピペを減らし、配色を一括で管理する。
@@ -13,6 +13,10 @@ const VARIANTS: Record<Variant, string> = {
   secondary: "bg-slate-100 text-slate-600 active:bg-slate-200",
   danger: "bg-red-500 text-white active:bg-red-600",
   ghost: "bg-transparent text-primary-text hover:bg-primary-light",
+  // 白地＋ピンク枠線。塗りの primary と差をつけつつ「押せる」が分かる。
+  // 2択トグルの未選択側・補助ボタンに使う。
+  outline:
+    "border-2 border-primary-mid bg-white text-primary-text hover:bg-primary-light active:bg-primary-light",
 };
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {

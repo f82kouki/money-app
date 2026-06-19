@@ -118,10 +118,11 @@ export default function PaymentForm({
             type="button"
             key={m.id}
             onClick={() => setPayer(m.id)}
-            className={`truncate rounded-xl py-3 text-base font-semibold ${
+            aria-pressed={payer === m.id}
+            className={`truncate rounded-xl border-2 py-3 text-base font-semibold transition-colors ${
               payer === m.id
-                ? "bg-primary text-primary-text"
-                : "bg-slate-100 text-slate-600"
+                ? "border-cta bg-cta text-cta-fg shadow-sm"
+                : "border-primary-mid bg-white text-primary-text"
             }`}
           >
             {m.display_name}
@@ -143,10 +144,10 @@ export default function PaymentForm({
               key={opt.value}
               onClick={() => setSplitType(opt.value)}
               aria-pressed={splitType === opt.value}
-              className={`rounded-xl py-2.5 text-base font-semibold transition-colors ${
+              className={`rounded-xl border-2 py-2.5 text-base font-semibold transition-colors ${
                 splitType === opt.value
-                  ? "bg-cta text-cta-fg shadow-sm"
-                  : "bg-slate-100 text-slate-600"
+                  ? "border-cta bg-cta text-cta-fg shadow-sm"
+                  : "border-primary-mid bg-white text-primary-text"
               }`}
             >
               {opt.label}
