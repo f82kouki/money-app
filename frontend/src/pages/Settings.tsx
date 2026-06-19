@@ -3,8 +3,16 @@ import { useNavigate } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import type { CelebrationSettings, Group, Member } from "../types";
+import Button from "../components/Button";
+import type {
+  CelebrationImage,
+  CelebrationSettings,
+  Group,
+  Member,
+} from "../types";
 import { downscaleImage } from "../utils/image";
+
+const MAX_IMAGES = 5;
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -16,9 +24,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // お祝い画像（記録時のダイアログ）
+  // お祝い画像（記録時のダイアログ・複数枚）
   const [celebEnabled, setCelebEnabled] = useState(false);
-  const [celebImageUrl, setCelebImageUrl] = useState<string | null>(null);
+  const [celebImages, setCelebImages] = useState<CelebrationImage[]>([]);
   const [celebMessage, setCelebMessage] = useState("");
   const [celebError, setCelebError] = useState("");
   const [celebBusy, setCelebBusy] = useState(false);
@@ -46,7 +54,7 @@ export default function Settings() {
       .get<CelebrationSettings>("/api/me/celebration")
       .then((c) => {
         setCelebEnabled(c.celebration_enabled);
-        setCelebImageUrl(c.celebration_image_url);
+        setCelebImages(c.images);
       })
       .catch(() => {
         /* 取得失敗時はデフォルト(オフ・画像なし)のまま */
@@ -58,9 +66,11 @@ export default function Settings() {
     setCelebMessage("");
     setCelebEnabled(next); // 楽観的に反映
     try {
-      const c = await api.patch<CelebrationSettings>("/api/me/celebration", {
-        celebration_enabled: next,
-      });
+      // トグルは軽量応答（enabled のみ。画像URLの再署名はしない）。
+      const c = await api.patch<{ celebration_enabled: boolean }>(
+        "/api/me/celebration",
+        { celebration_enabled: next }
+      );
       setCelebEnabled(c.celebration_enabled);
     } catch (err) {
       setCelebEnabled(!next); // 失敗したら戻す
@@ -83,8 +93,8 @@ export default function Settings() {
         "/api/me/celebration/image",
         form
       );
-      setCelebImageUrl(c.celebration_image_url);
-      setCelebMessage("画像を保存しました");
+      setCelebImages(c.images);
+      setCelebMessage("画像を追加しました");
     } catch (err) {
       setCelebError(err instanceof ApiError ? err.message : "画像の保存に失敗しました");
     } finally {
@@ -92,13 +102,15 @@ export default function Settings() {
     }
   }
 
-  async function deleteCelebImage() {
+  async function deleteCelebImage(id: string) {
     setCelebError("");
     setCelebMessage("");
     setCelebBusy(true);
     try {
-      const c = await api.delete<CelebrationSettings>("/api/me/celebration/image");
-      setCelebImageUrl(c.celebration_image_url);
+      const c = await api.delete<CelebrationSettings>(
+        `/api/me/celebration/image/${id}`
+      );
+      setCelebImages(c.images);
       setCelebMessage("画像を削除しました");
     } catch (err) {
       setCelebError(err instanceof ApiError ? err.message : "削除に失敗しました");
@@ -137,6 +149,7 @@ export default function Settings() {
   }
 
   const partnerCount = group.members.length;
+  const canAddImage = celebImages.length < MAX_IMAGES;
 
   return (
     <div className="min-h-screen px-4 pb-10">
@@ -159,16 +172,17 @@ export default function Settings() {
           />
           {message && <p className="mt-2 text-sm text-green-600">{message}</p>}
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          <button
+          <Button
+            fullWidth
             onClick={saveName}
             disabled={saving}
-            className="mt-3 w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
+            className="mt-3"
           >
             {saving ? "保存中…" : "保存"}
-          </button>
+          </Button>
         </section>
 
-        {/* 記録時の表示画像*/}
+        {/* 記録時の表示画像（複数枚） */}
         <section className="rounded-2xl bg-white p-4 shadow">
           <h2 className="mb-2 text-sm font-semibold text-slate-500">
             記録時の表示画像
@@ -185,7 +199,7 @@ export default function Settings() {
               aria-checked={celebEnabled}
               onClick={() => toggleCeleb(!celebEnabled)}
               className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-0.5 transition-colors ${
-                celebEnabled ? "bg-primary-mid" : "bg-slate-300"
+                celebEnabled ? "bg-cta" : "bg-slate-300"
               }`}
             >
               <span
@@ -196,18 +210,31 @@ export default function Settings() {
             </button>
           </div>
 
-          {/* プレビュー */}
-          {celebImageUrl && (
-            <div className="mt-4 flex flex-col items-center">
-              <img
-                src={celebImageUrl}
-                alt="お祝い画像プレビュー"
-                className="max-h-40 rounded-xl object-contain"
-              />
+          {/* 画像グリッド（サムネ＋個別削除） */}
+          {celebImages.length > 0 && (
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {celebImages.map((img) => (
+                <div key={img.id} className="relative">
+                  <img
+                    src={img.url}
+                    alt="お祝い画像"
+                    className="h-24 w-full rounded-xl object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => deleteCelebImage(img.id)}
+                    disabled={celebBusy}
+                    aria-label="この画像を削除"
+                    className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-sm font-bold text-white shadow disabled:opacity-50"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* アップロード / 削除 */}
+          {/* 追加 */}
           <input
             ref={fileInputRef}
             type="file"
@@ -215,26 +242,21 @@ export default function Settings() {
             onChange={onPickImage}
             className="hidden"
           />
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={celebBusy}
-              className="flex-1 rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
-            >
-              {celebBusy ? "処理中…" : celebImageUrl ? "画像を変更" : "画像を選ぶ"}
-            </button>
-            {celebImageUrl && (
-              <button
-                type="button"
-                onClick={deleteCelebImage}
-                disabled={celebBusy}
-                className="rounded-xl bg-slate-100 px-4 py-3 text-base font-semibold text-slate-600 disabled:opacity-50"
-              >
-                削除
-              </button>
-            )}
-          </div>
+          <Button
+            fullWidth
+            onClick={() => fileInputRef.current?.click()}
+            disabled={celebBusy || !canAddImage}
+            className="mt-3"
+          >
+            {celebBusy
+              ? "処理中…"
+              : canAddImage
+                ? `画像を追加（${celebImages.length}/${MAX_IMAGES}）`
+                : `上限（${MAX_IMAGES}枚）に達しました`}
+          </Button>
+          <p className="mt-2 text-xs text-slate-400">
+            複数枚あると、記録のたびにランダムで表示されます。
+          </p>
           {celebMessage && (
             <p className="mt-2 text-sm text-green-600">{celebMessage}</p>
           )}
@@ -255,7 +277,7 @@ export default function Settings() {
               </p>
               <button
                 onClick={copyCode}
-                className="w-full rounded-xl bg-slate-100 py-4 text-center text-2xl font-mono font-bold tracking-widest text-slate-800"
+                className="w-full rounded-xl border-2 border-primary-mid bg-white py-4 text-center text-2xl font-mono font-bold tracking-widest text-primary-text active:bg-primary-light"
               >
                 {group.invite_code}
               </button>

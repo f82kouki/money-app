@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import CelebrationDialog from "../components/CelebrationDialog";
+import ConfirmDialog from "../components/ConfirmDialog";
 import PaymentForm, { type PaymentFormValues } from "../components/PaymentForm";
 import PaymentList from "../components/PaymentList";
 import SummaryCard from "../components/SummaryCard";
@@ -18,6 +19,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingSettle, setConfirmingSettle] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const [settleError, setSettleError] = useState("");
   const [celebrationUrl, setCelebrationUrl] = useState<string | null>(null);
   // お祝い設定はマウント時に1回だけ取得して保持する（記録のたびに再取得しない）。
   // 設定変更は別ルート(/settings)でのみ起き、戻ると Home が再マウントされ再取得される。
@@ -70,9 +74,13 @@ export default function Home() {
     await api.post<Payment>("/api/payments", values);
     await refresh();
     // 記録成功後にお祝い画像ダイアログを表示（マウント時に取得済みの設定を使う）。
-    // 編集(updatePayment)では表示しない。
-    if (celebration?.celebration_enabled && celebration.celebration_image_url) {
-      setCelebrationUrl(celebration.celebration_image_url);
+    // 編集(updatePayment)では表示しない。複数枚あればランダムに1枚選ぶ。
+    if (celebration?.celebration_enabled && celebration.images.length > 0) {
+      const pick =
+        celebration.images[
+          Math.floor(Math.random() * celebration.images.length)
+        ];
+      setCelebrationUrl(pick.url);
     }
   }
 
@@ -84,6 +92,21 @@ export default function Home() {
   async function deletePayment(id: string) {
     await api.delete(`/api/payments/${id}`);
     await refresh();
+  }
+
+  // 現在の貸し借りを精算して集計をリセットする（履歴は残る）。
+  async function doSettle() {
+    setSettleError("");
+    setSettling(true);
+    try {
+      await api.post("/api/settlements");
+      await refresh();
+    } catch (err) {
+      setSettleError(err instanceof ApiError ? err.message : "精算に失敗しました");
+    } finally {
+      setSettling(false);
+      setConfirmingSettle(false);
+    }
   }
 
   if (loading) {
@@ -140,7 +163,7 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 py-4">
         <img
           src="/favicon.png"
-          alt="warikan"
+          alt="ねここあらの財布"
           className="h-9 w-9 rounded-xl object-cover"
         />
         <button
@@ -148,7 +171,7 @@ export default function Home() {
           onClick={() => setMenuOpen(true)}
           aria-label="メニュー"
           aria-expanded={menuOpen}
-          className="rounded-full bg-white p-2 text-primary-text shadow-sm"
+          className="rounded-full bg-white p-2 text-primary-text shadow-sm active:bg-primary-light"
         >
           <svg
             width="22"
@@ -267,6 +290,27 @@ export default function Home() {
             設定
           </Link>
 
+          <Link
+            to="/messages"
+            onClick={closeMenu}
+            className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-slate-700 hover:bg-primary-light"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-slate-500"
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+            </svg>
+            メッセージ
+          </Link>
+
           <div className="my-2 mx-6 border-t border-slate-200" />
 
           <a
@@ -304,7 +348,17 @@ export default function Home() {
           </p>
         </section>
 
-        <SummaryCard summary={summary} />
+        <SummaryCard
+          summary={summary}
+          settling={settling}
+          onSettle={() => {
+            setSettleError("");
+            setConfirmingSettle(true);
+          }}
+        />
+        {settleError && (
+          <p className="px-1 text-sm text-red-600">{settleError}</p>
+        )}
 
         <section>
           <h2 className="mb-2 text-sm font-semibold text-slate-500">支払いを記録</h2>
@@ -332,6 +386,15 @@ export default function Home() {
         <CelebrationDialog
           image={celebrationUrl}
           onClose={() => setCelebrationUrl(null)}
+        />
+      )}
+
+      {confirmingSettle && (
+        <ConfirmDialog
+          message="現在の貸し借りを精算して集計をリセットします。よろしいですか？（記録の履歴は残ります）"
+          confirmLabel="精算する"
+          onCancel={() => setConfirmingSettle(false)}
+          onConfirm={doSettle}
         />
       )}
     </div>

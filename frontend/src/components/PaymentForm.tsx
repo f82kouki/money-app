@@ -1,14 +1,19 @@
 import { useState, type FormEvent } from "react";
 
-import type { Member } from "../types";
+import type { Member, SplitType } from "../types";
 import { playChari } from "../utils/sound";
+import Button from "./Button";
 
 export interface PaymentFormValues {
   payer_member_id: string;
   amount: number;
   category: string;
   paid_at: string;
+  split_type: SplitType;
 }
+
+// バックエンド(schemas.py MAX_AMOUNT)と揃える。桁あふれ/過大入力をサーバー到達前に弾く。
+const MAX_AMOUNT = 1_000_000_000;
 
 function todayStr(): string {
   const d = new Date();
@@ -41,8 +46,16 @@ export default function PaymentForm({
   const [payer, setPayer] = useState(initial?.payer_member_id ?? defaultPayerId);
   const [category, setCategory] = useState(initial?.category ?? "");
   const [paidAt, setPaidAt] = useState(initial?.paid_at ?? todayStr());
+  const [splitType, setSplitType] = useState<SplitType>(
+    initial?.split_type ?? "warikan"
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const payerName =
+    members.find((m) => m.id === payer)?.display_name ?? "払った人";
+  const otherName =
+    members.find((m) => m.id !== payer)?.display_name ?? "相手";
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -50,6 +63,14 @@ export default function PaymentForm({
     const value = parseInt(amount, 10);
     if (!value || value <= 0) {
       setError("金額を入力してください");
+      return;
+    }
+    if (value > MAX_AMOUNT) {
+      setError(`金額は ${MAX_AMOUNT.toLocaleString("ja-JP")} 円以下にしてください`);
+      return;
+    }
+    if (!paidAt) {
+      setError("日付を入力してください");
       return;
     }
     // バリデーション通過直後（＝有効な押下）に鳴らす。クリック起点なので自動再生制限もクリア。
@@ -61,6 +82,7 @@ export default function PaymentForm({
         amount: value,
         category: category.trim(),
         paid_at: paidAt,
+        split_type: splitType,
       });
       if (!initial) {
         // 新規追加後はフォームをリセット（連続入力しやすく）
@@ -96,15 +118,47 @@ export default function PaymentForm({
             type="button"
             key={m.id}
             onClick={() => setPayer(m.id)}
-            className={`truncate rounded-xl py-3 text-base font-semibold ${
+            aria-pressed={payer === m.id}
+            className={`truncate rounded-xl border-2 py-3 text-base font-semibold transition-colors ${
               payer === m.id
-                ? "bg-primary text-primary-text"
-                : "bg-slate-100 text-slate-600"
+                ? "border-cta bg-cta text-cta-fg shadow-sm"
+                : "border-primary-mid bg-white text-primary-text"
             }`}
           >
             {m.display_name}
           </button>
         ))}
+      </div>
+
+      {/* 割り方（割り勘 / 立て替え） */}
+      <div>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              { value: "warikan", label: "割り勘" },
+              { value: "tatekae", label: "立て替え" },
+            ] as const
+          ).map((opt) => (
+            <button
+              type="button"
+              key={opt.value}
+              onClick={() => setSplitType(opt.value)}
+              aria-pressed={splitType === opt.value}
+              className={`rounded-xl border-2 py-2.5 text-base font-semibold transition-colors ${
+                splitType === opt.value
+                  ? "border-cta bg-cta text-cta-fg shadow-sm"
+                  : "border-primary-mid bg-white text-primary-text"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {splitType === "tatekae" && (
+          <p className="mt-1 px-1 text-xs text-slate-500">
+            {payerName} が {otherName} の分を全額立て替え（{otherName} が満額返す）。
+          </p>
+        )}
       </div>
 
       {/* 項目・日付 */}
@@ -119,6 +173,7 @@ export default function PaymentForm({
         type="date"
         value={paidAt}
         onChange={(e) => setPaidAt(e.target.value)}
+        required
         className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
       />
 
@@ -126,21 +181,13 @@ export default function PaymentForm({
 
       <div className="flex gap-2">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 rounded-xl bg-slate-100 py-3 text-base font-semibold text-slate-600"
-          >
+          <Button variant="secondary" onClick={onCancel} className="flex-1">
             キャンセル
-          </button>
+          </Button>
         )}
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex-1 rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={saving} className="flex-1">
           {saving ? "保存中…" : submitLabel}
-        </button>
+        </Button>
       </div>
     </form>
   );

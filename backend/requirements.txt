@@ -1,7 +1,8 @@
+# ルートの requirements.txt と uvicorn 以外は同期させること（`make check-requirements`）。
+# Python は 3.12 に統一（.python-version / Dockerfile / Vercel プロジェクト設定）。
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
-# psycopg/bcrypt/pydantic は Python 3.14 用 wheel がある版に固定（Vercel が 3.14 を使うため）。
 pydantic[email]==2.13.4
 python-multipart==0.0.20
 psycopg[binary]==3.3.4

@@ -47,6 +47,11 @@ class Settings:
         "CORS_ORIGINS", "http://localhost:5178"
     ).split(",")
 
+    # --- ログインのレート制限（L1: DBベースの簡易ロック）---
+    # 連続失敗が上限に達したら一定時間ロックする。総当たり対策。
+    login_max_attempts: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+    login_lock_minutes: int = int(os.getenv("LOGIN_LOCK_MINUTES", "15"))
+
     # --- Supabase Storage（お祝い画像の本番保存先）---
     # 未設定なら storage.py が data URL(base64) にフォールバックする（ローカル開発用）。
     supabase_url: str = os.getenv("SUPABASE_URL", "").rstrip("/")
