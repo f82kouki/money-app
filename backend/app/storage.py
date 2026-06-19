@@ -25,9 +25,10 @@ _ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _TIMEOUT = 10.0  # 秒
 
 
-def _object_path(user_id: str) -> str:
-    # 1ユーザー1オブジェクト。拡張子なし(形式が変わっても上書きで孤児が出ない)。
-    return user_id
+def _object_path(user_id: str, image_id: str) -> str:
+    # 画像ごとに 1 オブジェクト（複数枚対応）。ユーザー単位で分け、孤児削除しやすく。
+    # 拡張子なし(形式が変わっても同キー上書きで孤児が出ない)。
+    return f"{user_id}/{image_id}"
 
 
 def _bucket_url(path: str) -> str:
@@ -57,13 +58,17 @@ def _request(
         raise RuntimeError(f"Supabase Storage {method} -> {e.code}: {body}") from e
 
 
-def save_image(user_id: str, content: bytes, content_type: str) -> str:
-    """画像を保存し、DBに入れる参照文字列を返す。"""
+def save_image(user_id: str, image_id: str, content: bytes, content_type: str) -> str:
+    """画像を保存し、DBに入れる参照文字列を返す。
+
+    image_id は celebration_images の行 ID。Storage 上で画像ごとに別オブジェクトに
+    分けるために使う（ローカルの data URL では使わない）。
+    """
     safe_ct = content_type if content_type in _ALLOWED_CONTENT_TYPES else "image/jpeg"
     if not settings.supabase_storage_enabled:
         encoded = base64.b64encode(content).decode("ascii")
         return f"data:{safe_ct};base64,{encoded}"
-    path = _object_path(user_id)
+    path = _object_path(user_id, image_id)
     _request(
         "POST",
         _bucket_url(path),

@@ -10,7 +10,7 @@ PYTHON := $(shell command -v python3.13 || command -v python3.12 || command -v p
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: help dev setup setup-frontend setup-backend db-init backend frontend lint build check clean \
+.PHONY: help dev setup setup-frontend setup-backend db-init backend frontend lint build check check-requirements clean \
 	up up-d down logs build-docker restart ps db-shell db-tables
 
 help:
@@ -27,7 +27,8 @@ help:
 	@echo "make setup       - frontend(npm) の依存をインストール"
 	@echo "make lint        - 型チェック（フロント）"
 	@echo "make build       - frontend を本番ビルド"
-	@echo "make check       - 型チェック + 本番ビルドで通るか確認（デプロイ前）"
+	@echo "make check       - requirements同期 + 型チェック + 本番ビルド（デプロイ前）"
+	@echo "make check-requirements - root/backend の requirements ドリフト検出"
 	@echo "make clean       - node_modules / dist などを削除"
 
 # ===== メイン: backend は Docker、frontend はローカル（vimmy と同じ流儀）=====
@@ -66,9 +67,22 @@ lint:
 build:
 	cd $(FRONTEND) && npm run build
 
-# 型チェック + 本番ビルドが通るかをまとめて確認（デプロイ前の検証用）
-check:
+# requirements 同期 + 型チェック + 本番ビルドが通るかをまとめて確認（デプロイ前の検証用）
+check: check-requirements
 	cd $(FRONTEND) && npm run lint && npm run build
+
+# ルートと backend の requirements.txt がズレていないか確認する。
+# Vercel はルートの requirements.txt を読むため、本番依存は両者で一致させる
+# （uvicorn は本番Vercelでは不要なので比較から除外。コメント/空行も無視）。
+check-requirements:
+	@norm() { grep -vE '^[[:space:]]*#|^[[:space:]]*$$|uvicorn' "$$1" | sort; }; \
+	if diff <(norm requirements.txt) <(norm $(BACKEND)/requirements.txt) >/dev/null; then \
+		echo "✅ requirements.txt は同期しています"; \
+	else \
+		echo "❌ requirements.txt がズレています (uvicorn以外):"; \
+		diff <(norm requirements.txt) <(norm $(BACKEND)/requirements.txt) || true; \
+		exit 1; \
+	fi
 
 clean:
 	rm -rf $(VENV) $(FRONTEND)/node_modules $(FRONTEND)/dist $(BACKEND)/warikan.db

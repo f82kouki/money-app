@@ -4,6 +4,7 @@ import { useAuth } from "./auth/AuthContext";
 import GroupSetup from "./pages/GroupSetup";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
+import Messages from "./pages/Messages";
 import Register from "./pages/Register";
 import Settings from "./pages/Settings";
 
@@ -43,6 +44,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Settings />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <RequireAuth>
+              <Messages />
             </RequireAuth>
           }
         />

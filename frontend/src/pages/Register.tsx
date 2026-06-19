@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import Button from "../components/Button";
 
 export default function Register() {
   const { register } = useAuth();
@@ -51,13 +52,9 @@ export default function Register() {
           className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
-        >
+        <Button type="submit" fullWidth disabled={loading}>
           {loading ? "登録中…" : "登録する"}
-        </button>
+        </Button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">
         すでにアカウントがある？{" "}

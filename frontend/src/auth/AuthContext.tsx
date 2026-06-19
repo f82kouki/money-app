@@ -58,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // サーバー側でも token_version を進めて発行済みトークンを失効させる（L3）。
+    // 失敗してもローカルのログアウトは必ず実行する（best-effort）。
+    api.post("/api/auth/logout").catch(() => {});
     setToken(null);
     setAuthed(false);
   }, []);

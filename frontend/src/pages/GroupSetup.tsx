@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import Button from "../components/Button";
 import type { Group } from "../types";
 
 type Mode = "create" | "join";
@@ -47,19 +48,23 @@ export default function GroupSetup() {
         グループを作成する
       </h1>
 
-      <div className="mb-6 flex rounded-xl bg-slate-200 p-1">
+      <div className="mb-6 flex rounded-xl bg-primary-light p-1">
         <button
           onClick={() => setMode("create")}
-          className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-            mode === "create" ? "bg-white text-primary-text shadow" : "text-slate-500"
+          className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
+            mode === "create"
+              ? "bg-cta text-cta-fg shadow"
+              : "text-primary-text"
           }`}
         >
           新しく作る
         </button>
         <button
           onClick={() => setMode("join")}
-          className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-            mode === "join" ? "bg-white text-primary-text shadow" : "text-slate-500"
+          className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors ${
+            mode === "join"
+              ? "bg-cta text-cta-fg shadow"
+              : "text-primary-text"
           }`}
         >
           招待コードで参加
@@ -107,13 +112,9 @@ export default function GroupSetup() {
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-xl bg-primary py-3 text-base font-semibold text-primary-text active:bg-primary-dark disabled:opacity-50"
-        >
+        <Button type="submit" fullWidth disabled={loading}>
           {loading ? "処理中…" : mode === "create" ? "グループを作成" : "参加する"}
-        </button>
+        </Button>
       </form>
 
       <button

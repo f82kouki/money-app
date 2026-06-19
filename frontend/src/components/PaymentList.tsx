@@ -64,6 +64,7 @@ export default function PaymentList({
                 amount: p.amount,
                 category: p.category,
                 paid_at: p.paid_at,
+                split_type: p.split_type,
               }}
               submitLabel="更新する"
               onCancel={() => setEditingId(null)}
@@ -98,7 +99,19 @@ export default function PaymentList({
                     : "rounded-tl-sm bg-white text-slate-800"
                 }`}
               >
-                <div className="text-lg font-bold">{yen(p.amount)}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">{yen(p.amount)}</span>
+                  {p.split_type === "tatekae" && (
+                    <span className="shrink-0 rounded-full border border-primary-mid px-1.5 py-0.5 text-[10px] font-bold text-primary-text">
+                      立替
+                    </span>
+                  )}
+                  {p.settlement_id && (
+                    <span className="shrink-0 rounded-full bg-slate-300 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
+                      精算済
+                    </span>
+                  )}
+                </div>
                 {p.category && (
                   <div className="mt-0.5 text-sm opacity-80">{p.category}</div>
                 )}
@@ -132,7 +145,7 @@ export default function PaymentList({
         <div className="flex justify-center">
           <button
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-primary-text shadow-sm active:bg-primary-light"
+            className="rounded-full bg-cta px-5 py-2 text-sm font-bold text-cta-fg shadow-sm hover:bg-cta-hover active:bg-cta-hover"
           >
             もっと見る（残り{remaining}件）
           </button>

@@ -1,8 +1,9 @@
 # Vercel(@vercel/python) はリポジトリルートの requirements.txt を読む。
-# 中身は backend/requirements.txt と同じものを維持すること。
+# 中身は backend/requirements.txt と同じに保つこと（uvicorn を除く / uvicorn は本番Vercelでは不要）。
+# 同期確認: `make check-requirements`（差分があれば失敗する）。
+# Python は 3.12 に統一（.python-version / backend/Dockerfile / Vercel プロジェクト設定）。
 fastapi==0.115.6
 sqlalchemy==2.0.36
-# psycopg/bcrypt/pydantic は Python 3.14 用 wheel がある版に固定（Vercel が 3.14 を使うため）。
 pydantic[email]==2.13.4
 python-multipart==0.0.20
 psycopg[binary]==3.3.4

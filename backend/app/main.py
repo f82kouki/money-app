@@ -12,14 +12,21 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
 from .logging_config import logger
-from .routers import auth, groups, payments, settings as settings_router
+from .routers import (
+    auth,
+    groups,
+    messages,
+    payments,
+    settings as settings_router,
+)
 
 app = FastAPI(title="warikan API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    # 認証は Authorization ヘッダ(Bearer)で行い Cookie を使わないため資格情報の共有は不要。
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -83,6 +90,7 @@ app.include_router(auth.router)
 app.include_router(groups.router)
 app.include_router(payments.router)
 app.include_router(settings_router.router)
+app.include_router(messages.router)
 
 
 @app.on_event("startup")

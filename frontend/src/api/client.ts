@@ -19,6 +19,21 @@ export class ApiError extends Error {
   }
 }
 
+// エラー応答から人間可読なメッセージを取り出す。
+// FastAPI の 422(入力検証)は detail が配列([{loc,msg,...}])なので、
+// そのまま文字列化すると "[object Object]" になる。配列のときは丸めた文言にする。
+function errorMessage(data: unknown, status: number): string {
+  const detail =
+    data && typeof data === "object"
+      ? (data as { detail?: unknown }).detail
+      : undefined;
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    return "入力内容を確認してください";
+  }
+  return `エラーが発生しました (${status})`;
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -41,9 +56,7 @@ async function request<T>(
   const data = text ? JSON.parse(text) : null;
 
   if (!res.ok) {
-    const detail =
-      (data && (data.detail as string)) || `エラーが発生しました (${res.status})`;
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, errorMessage(data, res.status));
   }
   return data as T;
 }
@@ -65,9 +78,7 @@ async function requestForm<T>(
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    const detail =
-      (data && (data.detail as string)) || `エラーが発生しました (${res.status})`;
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, errorMessage(data, res.status));
   }
   return data as T;
 }

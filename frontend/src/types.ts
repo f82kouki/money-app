@@ -12,12 +12,26 @@ export interface Group {
   my_member_id: string;
 }
 
+// 精算の種別: warikan=2人で折半 / tatekae=相手が全額負担(立て替え/貸し)
+export type SplitType = "warikan" | "tatekae";
+
 export interface Payment {
   id: string;
   payer_member_id: string;
   amount: number;
   category: string;
   paid_at: string; // YYYY-MM-DD
+  split_type: SplitType;
+  settlement_id: string | null; // 精算済みなら settlement の ID（未精算は null）
+  created_at: string;
+}
+
+export interface Settlement {
+  id: string;
+  from_member_id: string | null;
+  to_member_id: string | null;
+  amount: number;
+  settled_by_member_id: string;
   created_at: string;
 }
 
@@ -37,7 +51,19 @@ export interface Summary {
   message: string;
 }
 
+export interface CelebrationImage {
+  id: string;
+  url: string;
+}
+
 export interface CelebrationSettings {
   celebration_enabled: boolean;
-  celebration_image_url: string | null;
+  images: CelebrationImage[];
+}
+
+export interface Message {
+  id: string;
+  sender_member_id: string;
+  body: string;
+  created_at: string;
 }
