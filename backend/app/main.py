@@ -8,6 +8,8 @@ from fastapi.exception_handlers import (
 )
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import ProgrammingError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
@@ -19,6 +21,7 @@ from .routers import (
     payments,
     settings as settings_router,
 )
+from .schema_check import find_schema_drift, has_drift
 
 app = FastAPI(title="warikan API")
 
@@ -74,6 +77,36 @@ async def on_http_exception(request: Request, exc: StarletteHTTPException):
     return await http_exception_handler(request, exc)
 
 
+# Postgres の sqlstate: 42703=undefined_column / 42P01=undefined_table。
+# これらは「マイグレーション未適用でモデルにある列/表が DB に無い」サイン。
+_SCHEMA_DRIFT_SQLSTATES = {"42703", "42P01"}
+
+
+@app.exception_handler(ProgrammingError)
+async def on_db_programming_error(request: Request, exc: ProgrammingError):
+    """DB の列/表欠落(drift)は 500 生スタックトレースでなく 503 で返す。
+
+    ハンドラ未登録だと ServerErrorMiddleware が 500 を返してしまう（事故時の挙動）。
+    ここで拾い、利用者には「更新中」を表す 503、運用には原因 sqlstate をログに出す。
+    """
+    sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None)
+    if sqlstate in _SCHEMA_DRIFT_SQLSTATES:
+        logger.error(
+            "%s %s -> 503 スキーマdrift検知（マイグレーション未適用の疑い）: %s",
+            request.method,
+            request.url.path,
+            exc.orig,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "サーバー更新中です。少し待ってから再度お試しください。"},
+            headers={"Retry-After": "30"},
+        )
+    # それ以外の DB エラーは内部詳細を伏せて 500（全文はログに残す）。
+    logger.exception("%s %s -> 500 DBエラー", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "内部エラーが発生しました。"})
+
+
 @app.exception_handler(RequestValidationError)
 async def on_validation_error(request: Request, exc: RequestValidationError):
     """422（入力チェック失敗）を、どの項目がダメだったかと一緒に記録する。"""
@@ -100,9 +133,35 @@ async def on_startup():
 
         init_db()
         logger.info("テーブルを自動作成しました (AUTO_CREATE_TABLES=1)")
+    # スキーマdrift の先回り検知（best-effort。DB 接続不可でも起動は止めない）。
+    # サーバーレスでは startup が確実に走らないため、これは“従”。リクエスト時の
+    # 503 ハンドラ(on_db_programming_error)が“主”の防御。
+    try:
+        drift = find_schema_drift()
+        if has_drift(drift):
+            logger.error(
+                "スキーマdrift検知: 不足テーブル=%s 不足カラム=%s "
+                "（マイグレーション未適用の可能性。CIのmigrateジョブ/手動適用を確認）",
+                drift["missing_tables"],
+                drift["missing_columns"],
+            )
+    except Exception:
+        logger.warning("スキーマdriftチェックに失敗（DB接続不可など）", exc_info=True)
     logger.info("warikan API 起動完了 (log_level=%s)", settings.log_level)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok"}
+    """死活＋スキーマ整合性。schema_ok=False は drift（要マイグレーション）。"""
+    try:
+        drift = find_schema_drift()
+        if has_drift(drift):
+            return {
+                "status": "ok",
+                "schema_ok": False,
+                "missing": drift["missing_tables"] + drift["missing_columns"],
+            }
+        return {"status": "ok", "schema_ok": True}
+    except Exception:
+        # DB に触れない場合は判定不能。死活自体は ok を返す。
+        return {"status": "ok", "schema_ok": None}
