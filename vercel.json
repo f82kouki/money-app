@@ -2,6 +2,9 @@
   "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "regions": ["hnd1"],
+  "git": {
+    "deploymentEnabled": { "main": false }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }

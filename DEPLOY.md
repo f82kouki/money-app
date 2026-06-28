@@ -99,6 +99,36 @@ DATABASE_URL='postgresql://postgres:[PASSWORD]@db.komdwtqknvhqzzdvohyx.supabase.
 
 > 例: 「記録時のお祝い画像」リリースでは `users` に `celebration_enabled` / `celebration_image` を追加。事前に上記マイグレーションを実行済み。
 
+### 3-4. CI による自動マイグレーション（推奨・手動運用の置換）
+
+上記の「手で順序を守る」運用は忘れやすく、2026-06-19 に `token_version` 欠落で本番が 500 になった。
+これを撤廃するため、GitHub Actions で **マイグレーション成功 → その後 Vercel デプロイ** を自動・順序保証する。
+
+- `.github/workflows/deploy.yml`: `main` への push で `migrate`(init_db) → `deploy`(Vercel CLI)。`deploy` は `needs: migrate` で**マイグレ成功が前提**（失敗時はデプロイされず旧コードのまま＝安全側）。
+- `vercel.json` の `git.deploymentEnabled.main=false` で **Vercel の main 自動デプロイを無効化**（デプロイ起点を Actions に一本化し、順序逆転を防ぐ）。
+- `.github/workflows/ci.yml`: PR/ブランチで使い捨て Postgres にマイグレを当て、冪等性と drift 無しを検査。
+
+**有効化に必要な事前設定（1回だけ）:**
+
+1. ローカルで `vercel link`（または既存）→ `.vercel/project.json` から `orgId` / `projectId` を取得。
+2. GitHub → Settings → Secrets and variables → Actions に登録:
+
+   | Secret | 値 |
+   |---|---|
+   | `PROD_DATABASE_URL` | Supabase の **Session/Direct 5432**・`?sslmode=require`（**6543 は不可**。DDL はトランザクションプーラーを避ける） |
+   | `VERCEL_TOKEN` | Vercel アカウントトークン |
+   | `VERCEL_ORG_ID` | `.vercel/project.json` の `orgId` |
+   | `VERCEL_PROJECT_ID` | `.vercel/project.json` の `projectId` |
+
+> マイグレ用 `PROD_DATABASE_URL` は **5432**、Vercel ランタイム用 `DATABASE_URL` は **6543**（4-2 参照）。用途で使い分ける。
+> 破壊的変更（列削除/リネーム/NOT NULL化）は単一デプロイで行わず、**expand/contract** で2デプロイに分割する。
+
+### 3-5. drift の自衛（実行時 503 / 死活）
+
+万一マイグレ漏れがあっても 500 生スタックトレースを出さないよう、`backend/app/main.py` が
+列/表欠落（Postgres sqlstate `42703`/`42P01`）を捕捉して **503 +「更新中」** を返す。
+`GET /api/health` は `schema_ok`（drift 有無）を返すので監視に使える。
+
 ---
 
 ## 4. Vercel デプロイ
