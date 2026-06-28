@@ -1,0 +1,53 @@
+# 本番デプロイ: マイグレーション成功 → その後 Vercel デプロイ（順序を強制）。
+#
+# 課題: Vercel の Git 自動デプロイは push と同時に走り、マイグレを追い越して
+#       "新コード稼働中・列なし" の窓を作る（2026-06-19 の事故）。本ワークフローは
+#       migrate ジョブ成功を deploy の前提条件(needs)にして順序を保証する。
+#
+# 前提（事前に1回だけ設定が必要）:
+#   - vercel.json で main の Git 自動デプロイを無効化済み（git.deploymentEnabled.main=false）
+#   - リポジトリ Secrets:
+#       PROD_DATABASE_URL  … Supabase の Session/Direct 5432・sslmode=require（6543 は不可）
+#       VERCEL_TOKEN       … Vercel アカウントトークン
+#       VERCEL_ORG_ID      … `vercel link` 後の .vercel/project.json から
+#       VERCEL_PROJECT_ID  … 同上
+name: deploy-prod
+
+on:
+  push:
+    branches: [main]
+
+# 連続 push でもマイグレを直列実行（取りこぼし防止）。実行中はキャンセルしない。
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: Apply migrations (idempotent / additive)
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        # init_db(): create_all(既存は no-op) + 冪等な ALTER ... ADD COLUMN IF NOT EXISTS。
+        # 再実行安全。失敗すれば deploy は走らない（fail-closed）。
+        run: python -c "from app.db import init_db; init_db(); print('migrated')"
+
+  deploy:
+    needs: migrate # ← マイグレ成功が前提。失敗時はデプロイせず旧コードのまま（安全側）。
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g vercel@latest
+      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

@@ -1,0 +1,53 @@
+# PR/ブランチ向け検査: マイグレーションが綺麗に当たり、モデルとDBに drift が無いか。
+#
+# 使い捨ての Postgres を立て、init_db() を適用して検証する。
+#   1) マイグレが新規DBにエラー無く当たる（SQL/型の妥当性）
+#   2) 2回流しても安全（冪等性）
+#   3) 適用後にモデル↔DBの drift が無い（find_schema_drift）
+#
+# 限界（要 Alembic / 作戦書 Track③）:
+#   init_db() は create_all で新規DBに全列を作るため、本検査では
+#   「モデルに列を足したがマイグレ関数を足し忘れた」ケースは検出できない。
+#   その確実な検出には Alembic 導入後の `alembic check` が必要。
+#   それまでは runtime の 503 自衛(main.py)で守る。
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main] # main は deploy-prod 側で migrate するため除外
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warikan_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/warikan_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: migrate applies cleanly, is idempotent, and leaves no drift
+        working-directory: backend
+        run: |
+          python -c "from app.db import init_db; init_db(); print('migrate #1 ok')"
+          python -c "from app.db import init_db; init_db(); print('migrate #2 ok (idempotent)')"
+          python - <<'PY'
+          from app.schema_check import find_schema_drift, has_drift
+          drift = find_schema_drift()
+          assert not has_drift(drift), f"schema drift detected: {drift}"
+          print("no drift:", drift)
+          PY
