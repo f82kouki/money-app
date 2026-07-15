@@ -33,6 +33,11 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    # あいことば（第2の資格情報）。ユーザーID＋あいことばで再ログインするための
+    # bcrypt ハッシュ。NULL=未設定（設定画面で各自が登録するまで使えない）。
+    # get_current_user の毎リクエスト select(User) が全列を読むため、本番に列が無いと
+    # 認証が全停止する（db.py の _ensure_user_aikotoba_column で冪等追加）。
+    aikotoba_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     # トークン世代。ログアウト時に +1 して、発行済み JWT を一括失効させる（L3）。
@@ -83,10 +88,18 @@ class CelebrationImage(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    # お祝い画像はグループ（2人）で共有する。group_id で束ね、どちらのメンバーからでも
+    # 参照・追加・削除できる。user_id は「誰が追加したか」の記録として残し、
+    # expand/contract の contract まで撤去しない（後方互換）。既存行は
+    # _backfill_celebration_image_group が user_id 経由で group_id を埋める。
+    group_id: Mapped[str | None] = mapped_column(
+        ForeignKey("groups.id"), index=True, nullable=True
+    )
     image: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     user: Mapped[User] = relationship(back_populates="celebration_images")
+    group: Mapped["Group"] = relationship(back_populates="celebration_images")
 
 
 class Group(Base):
@@ -102,6 +115,12 @@ class Group(Base):
     )
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"
+    )
+    # お祝い画像（2人で共有）。孤児削除は User.celebration_images 側が担うため、
+    # ここでは delete-orphan を付けず参照専用の relationship にする。
+    celebration_images: Mapped[list["CelebrationImage"]] = relationship(
+        back_populates="group",
+        order_by="CelebrationImage.created_at.asc()",
     )
     messages: Mapped[list["Message"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"

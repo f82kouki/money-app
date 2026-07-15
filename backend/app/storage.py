@@ -1,8 +1,8 @@
 """お祝い画像の保存先を抽象化するモジュール。
 
-celebration_image カラムには「画像への参照文字列」を1つだけ保存する:
+celebration_images.image には「画像への参照文字列」を1つだけ保存する:
   - フォールバック(ローカル/未設定) : data URL  (例 "data:image/jpeg;base64,...")
-  - 本番(Supabase Storage)         : バケット内オブジェクトキー (例 "<user_id>")
+  - 本番(Supabase Storage)         : バケット内オブジェクトキー (例 "<group_id>/<image_id>")
 
 呼び出し側(routers/settings.py)は保存先を意識せず、この3関数だけを使う。
 SUPABASE_URL / SUPABASE_SERVICE_KEY が揃えば Storage を使い、無ければ data URL に
@@ -25,10 +25,10 @@ _ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _TIMEOUT = 10.0  # 秒
 
 
-def _object_path(user_id: str, image_id: str) -> str:
-    # 画像ごとに 1 オブジェクト（複数枚対応）。ユーザー単位で分け、孤児削除しやすく。
-    # 拡張子なし(形式が変わっても同キー上書きで孤児が出ない)。
-    return f"{user_id}/{image_id}"
+def _object_path(owner_key: str, image_id: str) -> str:
+    # 画像ごとに 1 オブジェクト（複数枚対応）。owner_key(=group_id)単位で分け、
+    # 孤児削除しやすく。拡張子なし(形式が変わっても同キー上書きで孤児が出ない)。
+    return f"{owner_key}/{image_id}"
 
 
 def _bucket_url(path: str) -> str:
@@ -58,9 +58,10 @@ def _request(
         raise RuntimeError(f"Supabase Storage {method} -> {e.code}: {body}") from e
 
 
-def save_image(user_id: str, image_id: str, content: bytes, content_type: str) -> str:
+def save_image(owner_key: str, image_id: str, content: bytes, content_type: str) -> str:
     """画像を保存し、DBに入れる参照文字列を返す。
 
+    owner_key は保存先を束ねるキー（お祝い画像はグループ共有なので group_id）。
     image_id は celebration_images の行 ID。Storage 上で画像ごとに別オブジェクトに
     分けるために使う（ローカルの data URL では使わない）。
     """
@@ -68,7 +69,7 @@ def save_image(user_id: str, image_id: str, content: bytes, content_type: str) -
     if not settings.supabase_storage_enabled:
         encoded = base64.b64encode(content).decode("ascii")
         return f"data:{safe_ct};base64,{encoded}"
-    path = _object_path(user_id, image_id)
+    path = _object_path(owner_key, image_id)
     _request(
         "POST",
         _bucket_url(path),

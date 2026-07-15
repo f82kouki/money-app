@@ -24,13 +24,20 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // お祝い画像（記録時のダイアログ・複数枚）
+  // お祝い画像（記録時のダイアログ・複数枚。画像は2人で共有）
   const [celebEnabled, setCelebEnabled] = useState(false);
   const [celebImages, setCelebImages] = useState<CelebrationImage[]>([]);
   const [celebMessage, setCelebMessage] = useState("");
   const [celebError, setCelebError] = useState("");
   const [celebBusy, setCelebBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // あいことば（ユーザーID＋あいことばで再ログインするための第2資格情報）
+  const [aikotobaSet, setAikotobaSet] = useState(false);
+  const [aikotobaInput, setAikotobaInput] = useState("");
+  const [aikotobaMessage, setAikotobaMessage] = useState("");
+  const [aikotobaError, setAikotobaError] = useState("");
+  const [aikotobaBusy, setAikotobaBusy] = useState(false);
 
   useEffect(() => {
     api
@@ -58,6 +65,15 @@ export default function Settings() {
       })
       .catch(() => {
         /* 取得失敗時はデフォルト(オフ・画像なし)のまま */
+      });
+  }, []);
+
+  useEffect(() => {
+    api
+      .get<{ aikotoba_set: boolean }>("/api/auth/aikotoba")
+      .then((s) => setAikotobaSet(s.aikotoba_set))
+      .catch(() => {
+        /* 取得失敗時は未設定表示のまま */
       });
   }, []);
 
@@ -130,6 +146,31 @@ export default function Settings() {
       setError(err instanceof ApiError ? err.message : "更新に失敗しました");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveAikotoba() {
+    const value = aikotobaInput.trim();
+    if (value.length < 2) {
+      setAikotobaError("あいことばは2文字以上で入力してください");
+      return;
+    }
+    setAikotobaError("");
+    setAikotobaMessage("");
+    setAikotobaBusy(true);
+    try {
+      await api.put<{ aikotoba_set: boolean }>("/api/auth/aikotoba", {
+        aikotoba: value,
+      });
+      setAikotobaSet(true);
+      setAikotobaInput("");
+      setAikotobaMessage("あいことばを保存しました");
+    } catch (err) {
+      setAikotobaError(
+        err instanceof ApiError ? err.message : "保存に失敗しました"
+      );
+    } finally {
+      setAikotobaBusy(false);
     }
   }
 
@@ -255,12 +296,48 @@ export default function Settings() {
                 : `上限（${MAX_IMAGES}枚）に達しました`}
           </Button>
           <p className="mt-2 text-xs text-slate-400">
-            複数枚あると、記録のたびにランダムで表示されます。
+            画像は2人で共有されます（オン/オフは自分だけ）。複数枚あると、記録のたびにランダムで表示されます。
           </p>
           {celebMessage && (
             <p className="mt-2 text-sm text-green-600">{celebMessage}</p>
           )}
           {celebError && <p className="mt-2 text-sm text-red-600">{celebError}</p>}
+        </section>
+
+        {/* あいことば（再ログイン用） */}
+        <section className="rounded-2xl bg-white p-4 shadow">
+          <h2 className="mb-2 text-sm font-semibold text-slate-500">あいことば</h2>
+          <p className="mb-3 text-xs text-slate-400">
+            ユーザーIDとあいことばで再ログインできます。
+            {aikotobaSet ? "（設定済み）" : "（未設定）"}
+          </p>
+          <input
+            type="password"
+            autoComplete="off"
+            value={aikotobaInput}
+            onChange={(e) => setAikotobaInput(e.target.value)}
+            maxLength={72}
+            placeholder={aikotobaSet ? "新しいあいことば" : "あいことば"}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
+          />
+          {aikotobaMessage && (
+            <p className="mt-2 text-sm text-green-600">{aikotobaMessage}</p>
+          )}
+          {aikotobaError && (
+            <p className="mt-2 text-sm text-red-600">{aikotobaError}</p>
+          )}
+          <Button
+            fullWidth
+            onClick={saveAikotoba}
+            disabled={aikotobaBusy}
+            className="mt-3"
+          >
+            {aikotobaBusy
+              ? "保存中…"
+              : aikotobaSet
+                ? "あいことばを変更"
+                : "あいことばを設定"}
+          </Button>
         </section>
 
         {/* 招待コード */}
