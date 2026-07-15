@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: warikan
       POSTGRES_DB: warikan
     ports:
-      - "5433:5432" # ホストからは localhost:5433 で psql 等で覗ける（5432 は他で使用中のため）
+      - "5434:5432" # ホストからは localhost:5434 で psql 等で覗ける（5432/5433 は他で使用中のため）
     volumes:
       - pgdata:/var/lib/postgresql/data # データを永続化
     healthcheck:
