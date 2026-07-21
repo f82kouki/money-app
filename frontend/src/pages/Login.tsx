@@ -63,7 +63,7 @@ export default function Login() {
           />
         ) : (
           <input
-            type="password"
+            type="text"
             autoComplete="off"
             placeholder="あいことば"
             value={aikotoba}

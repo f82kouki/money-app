@@ -312,7 +312,7 @@ export default function Settings() {
             {aikotobaSet ? "（設定済み）" : "（未設定）"}
           </p>
           <input
-            type="password"
+            type="text"
             autoComplete="off"
             value={aikotobaInput}
             onChange={(e) => setAikotobaInput(e.target.value)}
