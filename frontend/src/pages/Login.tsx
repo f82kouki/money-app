@@ -5,10 +5,14 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import Button from "../components/Button";
 
+type Mode = "password" | "aikotoba";
+
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginWithAikotoba } = useAuth();
+  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [aikotoba, setAikotoba] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,12 +21,21 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
+      if (mode === "aikotoba") {
+        await loginWithAikotoba(email, aikotoba);
+      } else {
+        await login(email, password);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "ログインに失敗しました");
     } finally {
       setLoading(false);
     }
+  }
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError("");
   }
 
   return (
@@ -38,20 +51,43 @@ export default function Login() {
           required
           className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
         />
-        <input
-          type="password"
-          autoComplete="current-password"
-          placeholder="パスワード"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
-        />
+        {mode === "password" ? (
+          <input
+            type="password"
+            autoComplete="current-password"
+            placeholder="パスワード"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
+          />
+        ) : (
+          <input
+            type="text"
+            autoComplete="off"
+            placeholder="あいことば"
+            value={aikotoba}
+            onChange={(e) => setAikotoba(e.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary-mid"
+          />
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button type="submit" fullWidth disabled={loading}>
           {loading ? "ログイン中…" : "ログイン"}
         </Button>
       </form>
+      <button
+        type="button"
+        onClick={() =>
+          switchMode(mode === "password" ? "aikotoba" : "password")
+        }
+        className="mt-4 text-center text-sm font-semibold text-primary-text"
+      >
+        {mode === "password"
+          ? "あいことばでログイン"
+          : "パスワードでログイン"}
+      </button>
       <p className="mt-6 text-center text-sm text-slate-500">
         アカウントお持ちでない方　{" "}
         <Link to="/register" className="font-semibold text-primary-text">

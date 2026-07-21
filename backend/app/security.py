@@ -39,6 +39,13 @@ def dummy_verify_password(password: str) -> None:
     verify_password(password, _DUMMY_HASH)
 
 
+# あいことば（第2の資格情報）もパスワードと同じ bcrypt(72byte)で扱う。意味を明確に
+# するための別名で、実体はパスワード用と同一。タイミング平準化も dummy_verify_password
+# を流用できる（ハッシュ方式が同じため）。
+hash_aikotoba = hash_password
+verify_aikotoba = verify_password
+
+
 def create_access_token(user: User) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes

@@ -23,7 +23,8 @@ export default function Messages() {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const didInitialScroll = useRef(false);
 
   // 初回ロード: グループ（メンバー名・自分の判定用）＋メッセージ
   useEffect(() => {
@@ -59,9 +60,39 @@ export default function Messages() {
     return () => window.clearInterval(id);
   }, []);
 
-  // 新着が来たら一番下へスクロール
+  // メッセージ表示中はページ本体のスクロール／バウンドを止める。
+  // 100dvh のコンテナ内だけをスクロールさせることで、モバイルのツールバー伸縮や
+  // キーボード表示で画面全体がずれるのを防ぐ。アンマウントで必ず元へ戻す。
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const html = document.documentElement;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: document.body.style.overflow,
+      overscroll: document.body.style.overscrollBehavior,
+    };
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      document.body.style.overflow = prev.bodyOverflow;
+      document.body.style.overscrollBehavior = prev.overscroll;
+    };
+  }, []);
+
+  // 新着が来たら一覧コンテナだけを最下部へ。初回は瞬時に、以降は最下部付近に
+  // いる時だけ smooth で追従する（履歴を遡って読んでいる最中は動かさない）。
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    if (!didInitialScroll.current) {
+      if (messages.length === 0) return;
+      el.scrollTop = el.scrollHeight;
+      didInitialScroll.current = true;
+      return;
+    }
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   async function send(e: FormEvent) {
@@ -88,7 +119,7 @@ export default function Messages() {
     group?.members.find((m) => m.id === id)?.display_name ?? "";
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col supports-[height:100dvh]:h-[100dvh]">
       <header className="flex items-center gap-3 px-4 py-4">
         <button onClick={() => navigate("/")} className="text-slate-500">
           ← 戻る
@@ -96,7 +127,10 @@ export default function Messages() {
         <h1 className="text-lg font-bold text-slate-800">メッセージ</h1>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+      <div
+        ref={listRef}
+        className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-4"
+      >
         {loading ? (
           <p className="py-10 text-center text-sm text-slate-400">読み込み中…</p>
         ) : messages.length === 0 ? (
@@ -131,14 +165,13 @@ export default function Messages() {
             );
           })
         )}
-        <div ref={bottomRef} />
       </div>
 
       {error && <p className="px-4 pb-1 text-sm text-red-600">{error}</p>}
 
       <form
         onSubmit={send}
-        className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-3"
+        className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
       >
         <input
           value={body}

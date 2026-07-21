@@ -22,6 +22,22 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
 
 
+# ---- あいことば（第2の資格情報：ユーザーID＋あいことばで再ログイン）----
+class AikotobaLoginIn(BaseModel):
+    email: str
+    aikotoba: str
+
+
+class AikotobaSetIn(BaseModel):
+    # 『にっこり』(4文字)を許容しつつ極端に短い値は弾く。bcrypt に合わせ 72 上限。
+    aikotoba: str = Field(min_length=2, max_length=72)
+
+
+class AikotobaStateOut(BaseModel):
+    # 設定画面で「あいことば設定済みか」を表示するための軽量モデル。
+    aikotoba_set: bool
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

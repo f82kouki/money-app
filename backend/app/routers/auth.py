@@ -9,12 +9,22 @@ from ..config import settings
 from ..db import get_db
 from ..logging_config import logger
 from ..models import User
-from ..schemas import LoginIn, RegisterIn, TokenOut, UserOut
+from ..schemas import (
+    AikotobaLoginIn,
+    AikotobaSetIn,
+    AikotobaStateOut,
+    LoginIn,
+    RegisterIn,
+    TokenOut,
+    UserOut,
+)
 from ..security import (
     create_access_token,
     dummy_verify_password,
     get_current_user,
+    hash_aikotoba,
     hash_password,
+    verify_aikotoba,
     verify_password,
 )
 
@@ -44,15 +54,50 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
     return TokenOut(access_token=create_access_token(user))
 
 
+def _locked_exc() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="ログイン試行が多すぎます。しばらくしてから再度お試しください",
+    )
+
+
+def _apply_login_result(
+    user: User,
+    secret_ok: bool,
+    db: Session,
+    now: datetime,
+    invalid: HTTPException,
+) -> TokenOut:
+    """検証結果に L1 ロックアウトの後処理を適用してトークンを返す（失敗は送出）。
+
+    ロック中判定は呼び出し側で済ませておく前提。失敗カウンタ/ロックは
+    パスワードとあいことばで**同じ列**を共有するため、別経路でロックを回避できない。
+    """
+    if not secret_ok:
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= settings.login_max_attempts:
+            user.locked_until = now + timedelta(minutes=settings.login_lock_minutes)
+            user.failed_login_attempts = 0  # ロックしたらカウンタはリセット
+            db.commit()
+            logger.warning("ログインロック: id=%s", user.id)
+            raise _locked_exc()
+        db.commit()
+        raise invalid
+
+    # 成功 → 失敗カウンタ・ロックを解除
+    if user.failed_login_attempts or user.locked_until is not None:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.commit()
+    logger.info("ログイン成功: id=%s", user.id)
+    return TokenOut(access_token=create_access_token(user))
+
+
 @router.post("/login", response_model=TokenOut)
 def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
     invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="メールアドレスまたはパスワードが違います",
-    )
-    locked = HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="ログイン試行が多すぎます。しばらくしてから再度お試しください",
     )
 
     user = db.scalar(select(User).where(User.email == body.email))
@@ -64,26 +109,70 @@ def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
     now = datetime.now(timezone.utc)
     # ロック中はパスワードの正否に関わらず弾く（L1）。
     if user.locked_until is not None and _as_aware(user.locked_until) > now:
-        raise locked
+        raise _locked_exc()
 
-    if not verify_password(body.password, user.password_hash):
-        user.failed_login_attempts += 1
-        if user.failed_login_attempts >= settings.login_max_attempts:
-            user.locked_until = now + timedelta(minutes=settings.login_lock_minutes)
-            user.failed_login_attempts = 0  # ロックしたらカウンタはリセット
-            db.commit()
-            logger.warning("ログインロック: id=%s", user.id)
-            raise locked
-        db.commit()
+    secret_ok = verify_password(body.password, user.password_hash)
+    return _apply_login_result(user, secret_ok, db, now, invalid)
+
+
+@router.post("/login-aikotoba", response_model=TokenOut)
+def login_aikotoba(body: AikotobaLoginIn, db: Session = Depends(get_db)) -> TokenOut:
+    """ユーザーID＋あいことばで再ログインする（パスワードと同じ防御フロー）。"""
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="ユーザーIDまたはあいことばが違います",
+    )
+
+    user = db.scalar(select(User).where(User.email == body.email))
+    if user is None:
+        dummy_verify_password(body.aikotoba)
         raise invalid
 
-    # 成功 → 失敗カウンタ・ロックを解除
-    if user.failed_login_attempts or user.locked_until is not None:
-        user.failed_login_attempts = 0
-        user.locked_until = None
-        db.commit()
-    logger.info("ログイン成功: id=%s", user.id)
-    return TokenOut(access_token=create_access_token(user))
+    now = datetime.now(timezone.utc)
+    # ロックはパスワードと共有カウンタ（別経路でロックを回避させない・L1）。
+    if user.locked_until is not None and _as_aware(user.locked_until) > now:
+        raise _locked_exc()
+
+    # あいことば未設定は常に失敗扱い。ただし時間を平準化してから弾く（L2）。
+    if user.aikotoba_hash is None:
+        dummy_verify_password(body.aikotoba)
+        secret_ok = False
+    else:
+        secret_ok = verify_aikotoba(body.aikotoba, user.aikotoba_hash)
+    return _apply_login_result(user, secret_ok, db, now, invalid)
+
+
+@router.get("/aikotoba", response_model=AikotobaStateOut)
+def get_aikotoba_state(
+    user: User = Depends(get_current_user),
+) -> AikotobaStateOut:
+    """あいことばが設定済みかを返す（値そのものは返さない）。"""
+    return AikotobaStateOut(aikotoba_set=user.aikotoba_hash is not None)
+
+
+@router.put("/aikotoba", response_model=AikotobaStateOut)
+def set_aikotoba(
+    body: AikotobaSetIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AikotobaStateOut:
+    """あいことばを登録・変更する。値はログに出さない（PII 同様）。"""
+    user.aikotoba_hash = hash_aikotoba(body.aikotoba)
+    db.commit()
+    logger.info("あいことば設定: id=%s", user.id)
+    return AikotobaStateOut(aikotoba_set=True)
+
+
+@router.delete("/aikotoba", response_model=AikotobaStateOut)
+def delete_aikotoba(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AikotobaStateOut:
+    """あいことばを解除する（あいことばログインを無効化）。"""
+    user.aikotoba_hash = None
+    db.commit()
+    logger.info("あいことば解除: id=%s", user.id)
+    return AikotobaStateOut(aikotoba_set=False)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
