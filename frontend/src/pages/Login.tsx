@@ -53,7 +53,7 @@ export default function Login() {
         </Button>
       </form>
       <p className="mt-6 text-center text-sm text-slate-500">
-        アカウントお持ちでない方　{" "}
+        アカウントをお持ちでない方　{" "}
         <Link to="/register" className="font-semibold text-primary-text">
           新規登録
         </Link>
