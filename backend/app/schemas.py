@@ -1,8 +1,9 @@
 """Pydantic v2 の入出力スキーマ。"""
+import unicodedata
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ---- 認証 ----
@@ -20,6 +21,45 @@ class LoginIn(BaseModel):
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# ---- あいことば（第2の資格情報：ユーザーID＋あいことばで再ログイン）----
+def normalize_aikotoba(value: str) -> str:
+    """設定時とログイン時で必ず同じ形にそろえる（全半角・濁点の合成/分解・前後空白のゆれを吸収）。"""
+    return unicodedata.normalize("NFKC", value).strip()
+
+
+class AikotobaLoginIn(BaseModel):
+    email: str
+    aikotoba: str
+
+    @field_validator("aikotoba")
+    @classmethod
+    def _normalize(cls, v: str) -> str:
+        return normalize_aikotoba(v)
+
+
+AIKOTOBA_MIN_CHARS = 4  # 『にっこり』は4文字。2文字では総当たりの現実的な範囲に入る
+
+
+class AikotobaSetIn(BaseModel):
+    # 長さは正規化後の値で判定する。上限は bcrypt に合わせ 72 バイト（文字数ではない）。
+    aikotoba: str
+
+    @field_validator("aikotoba")
+    @classmethod
+    def _validate(cls, v: str) -> str:
+        v = normalize_aikotoba(v)
+        if len(v) < AIKOTOBA_MIN_CHARS:
+            raise ValueError(f"あいことばは{AIKOTOBA_MIN_CHARS}文字以上にしてください")
+        if len(v.encode("utf-8")) > 72:  # bcrypt の上限は文字数ではなくバイト数
+            raise ValueError("あいことばが長すぎます")
+        return v
+
+
+class AikotobaStateOut(BaseModel):
+    # 設定画面で「あいことば設定済みか」を表示するための軽量モデル。
+    aikotoba_set: bool
 
 
 class UserOut(BaseModel):

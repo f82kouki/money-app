@@ -17,6 +17,7 @@ interface AuthState {
   // 認証済みかどうか。null = 確認中（初回ロード）
   authed: boolean | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithAikotoba: (email: string, aikotoba: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -51,6 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthed(true);
   }, []);
 
+  const loginWithAikotoba = useCallback(
+    async (email: string, aikotoba: string) => {
+      const res = await api.post<TokenOut>("/api/auth/login-aikotoba", {
+        email,
+        aikotoba,
+      });
+      setToken(res.access_token);
+      setAuthed(true);
+    },
+    []
+  );
+
   const register = useCallback(async (email: string, password: string) => {
     const res = await api.post<TokenOut>("/api/auth/register", { email, password });
     setToken(res.access_token);
@@ -66,7 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ authed, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ authed, login, loginWithAikotoba, register, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
