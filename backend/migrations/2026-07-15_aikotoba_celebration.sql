@@ -2,7 +2,8 @@
 -- 先行適用/保険マイグレーション: あいことば再ログイン(C) ＋ お祝い画像の2人共有(A)
 --   追加物:
 --     - users.aikotoba_hash            … あいことば(第2資格情報)の bcrypt ハッシュ
---     - celebration_images.group_id    … お祝い画像を group(2人)で共有するための束ね列
+--     - celebration_images.group_id    … お祝い画像を group(2人)で共有するための束ね列(FK・index 付き)
+--     - auth_rate_limits               … 認証 API の IP 単位レート制限カウンタ
 --
 -- 位置づけ: 通常は main へ push すれば deploy-prod の migrate ジョブ(init_db)が
 --           同じ列を冪等に適用する。本SQLはその「保険/先行適用」用。特に
@@ -11,9 +12,10 @@
 --           (2026-06-19 の token_version 事故と同型)。心配ならコードデプロイの前に
 --           これを流して列だけ先に用意しておく(列が先にあってもコードは無害)。
 --
--- 性質: 冪等・後方互換(すべて ADD COLUMN IF NOT EXISTS)。再実行しても安全。
+-- 性質: 冪等・後方互換(すべて IF NOT EXISTS 相当)。再実行しても安全。
 --       backend/app/db.py の _ensure_user_aikotoba_column /
---       _ensure_celebration_image_group_column が足すのと同じ列を純SQLで再現。
+--       _ensure_celebration_image_group_column が足すものと、create_all が作る
+--       auth_rate_limits を純SQLで再現。
 --
 -- 実行先: Session/Direct の 5432(Transaction pooler 6543 ではない/DDL不可)。
 --         一番安全なのは Supabase ダッシュボードの SQL Editor に貼って実行。
@@ -40,6 +42,23 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS aikotoba_hash VARCHAR(255);
 
 -- タスクA: お祝い画像の group 化(ON/OFF は各自据え置きのため groups へは触らない)
 ALTER TABLE celebration_images ADD COLUMN IF NOT EXISTS group_id VARCHAR(32);
+CREATE INDEX IF NOT EXISTS ix_celebration_images_group_id
+  ON celebration_images (group_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                  WHERE conname = 'celebration_images_group_id_fkey') THEN
+    ALTER TABLE celebration_images
+      ADD CONSTRAINT celebration_images_group_id_fkey
+      FOREIGN KEY (group_id) REFERENCES groups (id);
+  END IF;
+END $$;
+
+-- 認証 API の IP 単位レート制限カウンタ(key は IP の HMAC)
+CREATE TABLE IF NOT EXISTS auth_rate_limits (
+  key VARCHAR(64) PRIMARY KEY,
+  window_start TIMESTAMPTZ NOT NULL,
+  hits INTEGER NOT NULL
+);
 
 COMMIT;
 

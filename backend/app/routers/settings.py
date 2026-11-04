@@ -130,6 +130,8 @@ async def upload_celebration_image(
 
     # 先に行を作って ID を確定させ、その ID で Storage のオブジェクトキーを分ける。
     # 共有先は group_id、user_id は「誰が追加したか」の記録として残す。
+    # commit 後に読むと event loop 上で再 SELECT が走るため先に取り出す（M4）。
+    enabled = user.celebration_enabled
     image = CelebrationImage(user_id=user.id, group_id=group_id, image="")
     db.add(image)
     db.flush()  # image.id を採番
@@ -142,9 +144,7 @@ async def upload_celebration_image(
     db.commit()
     # _to_out も署名URL発行(ブロッキング I/O)を含むため、async ハンドラから直接呼ばず
     # threadpool 経由で実行して event loop を塞がない（M4）。
-    return await run_in_threadpool(
-        _to_out, db, user.celebration_enabled, group_id
-    )
+    return await run_in_threadpool(_to_out, db, enabled, group_id)
 
 
 @router.delete("/celebration/image/{image_id}", response_model=CelebrationOut)

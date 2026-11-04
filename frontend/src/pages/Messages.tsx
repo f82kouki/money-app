@@ -25,6 +25,9 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
+  // 最下部付近を見ているか。新着描画「後」に測ると新着の高さぶん離れて見えて追従が
+  // 止まるため、ユーザーのスクロール時点の位置を覚えておく。
+  const stickToBottom = useRef(true);
 
   // 初回ロード: グループ（メンバー名・自分の判定用）＋メッセージ
   useEffect(() => {
@@ -84,16 +87,24 @@ export default function Messages() {
   // いる時だけ smooth で追従する（履歴を遡って読んでいる最中は動かさない）。
   useEffect(() => {
     const el = listRef.current;
-    if (!el) return;
+    if (!el || loading) return; // 読み込み中の表示では初回スクロールを消費しない
     if (!didInitialScroll.current) {
       if (messages.length === 0) return;
       el.scrollTop = el.scrollHeight;
       didInitialScroll.current = true;
       return;
     }
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    if (stickToBottom.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages, loading]);
+
+  function onListScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    stickToBottom.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -103,6 +114,7 @@ export default function Messages() {
     setSending(true);
     try {
       const msg = await api.post<Message>("/api/messages", { body: text });
+      stickToBottom.current = true; // 自分の送信は遡り中でも必ず最下部へ
       setMessages((prev) =>
         prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
       );
@@ -129,6 +141,7 @@ export default function Messages() {
 
       <div
         ref={listRef}
+        onScroll={onListScroll}
         className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-4"
       >
         {loading ? (

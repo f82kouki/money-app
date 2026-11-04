@@ -1,7 +1,7 @@
 """SQLAlchemy のエンジン・セッション・Base 定義。"""
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import create_engine, inspect, select, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -142,7 +142,7 @@ def _ensure_user_aikotoba_column() -> None:
 
 
 def _ensure_celebration_image_group_column() -> None:
-    """celebration_images に group_id 列を冪等に追加する（A: お祝い画像の2人共有）。
+    """celebration_images に group_id 列と FK・インデックスを冪等に追加する（A: お祝い画像の2人共有）。
 
     画像はグループ（2人）で共有する。既存行は _backfill_celebration_image_group が
     user_id → group_members → group からバックフィルする。ON/OFF は個人設定
@@ -151,15 +151,37 @@ def _ensure_celebration_image_group_column() -> None:
     insp = inspect(engine)
     if "celebration_images" not in insp.get_table_names():
         return
-    if "group_id" in {c["name"] for c in insp.get_columns("celebration_images")}:
-        return
+    has_column = "group_id" in {
+        c["name"] for c in insp.get_columns("celebration_images")
+    }
     is_sqlite = engine.dialect.name == "sqlite"
     if_not_exists = "" if is_sqlite else "IF NOT EXISTS "
     with engine.begin() as conn:
+        if not has_column:
+            conn.exec_driver_sql(
+                "ALTER TABLE celebration_images ADD COLUMN "
+                f"{if_not_exists}group_id VARCHAR(32)"
+            )
+        # 列を SQL で先行適用済みでも張れるよう、インデックス/FK は列の有無と独立に実行する。
         conn.exec_driver_sql(
-            "ALTER TABLE celebration_images ADD COLUMN "
-            f"{if_not_exists}group_id VARCHAR(32)"
+            "CREATE INDEX IF NOT EXISTS ix_celebration_images_group_id "
+            "ON celebration_images (group_id)"
         )
+        if not is_sqlite:  # SQLite は ALTER で FK を足せない（開発用途なので省略）
+            conn.exec_driver_sql(
+                """
+                DO $$ BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                     WHERE conname = 'celebration_images_group_id_fkey'
+                  ) THEN
+                    ALTER TABLE celebration_images
+                      ADD CONSTRAINT celebration_images_group_id_fkey
+                      FOREIGN KEY (group_id) REFERENCES groups (id);
+                  END IF;
+                END $$;
+                """
+            )
 
 
 def _ensure_payment_settlement_column() -> None:
@@ -216,33 +238,20 @@ def _backfill_celebration_image_group() -> None:
     """
     from .models import CelebrationImage, GroupMember
 
+    group_of_owner = (
+        select(GroupMember.group_id)
+        .where(GroupMember.user_id == CelebrationImage.user_id)
+        .limit(1)
+        .scalar_subquery()
+    )
     with SessionLocal() as db:
-        rows = db.execute(
-            select(CelebrationImage.id, CelebrationImage.user_id).where(
-                CelebrationImage.group_id.is_(None)
-            )
-        ).all()
-        if not rows:
-            return
-        # user_id → group_id の対応表を一括取得（画像ごとの N+1 を避ける）。
-        user_ids = {user_id for _, user_id in rows}
-        members = db.execute(
-            select(GroupMember.user_id, GroupMember.group_id).where(
-                GroupMember.user_id.in_(user_ids)
-            )
-        ).all()
-        group_by_user = {user_id: group_id for user_id, group_id in members}
-        changed = False
-        for image_id, user_id in rows:
-            group_id = group_by_user.get(user_id)
-            if group_id is None:
-                continue
-            db.query(CelebrationImage).filter(
-                CelebrationImage.id == image_id
-            ).update({"group_id": group_id})
-            changed = True
-        if changed:
-            db.commit()
+        db.execute(
+            update(CelebrationImage)
+            .where(CelebrationImage.group_id.is_(None))
+            .values(group_id=group_of_owner)
+            .execution_options(synchronize_session=False)
+        )
+        db.commit()
 
 
 def _migrate_celebration_image_to_table() -> None:

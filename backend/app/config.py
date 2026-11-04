@@ -51,6 +51,11 @@ class Settings:
     # 連続失敗が上限に達したら一定時間ロックする。総当たり対策。
     login_max_attempts: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
     login_lock_minutes: int = int(os.getenv("LOGIN_LOCK_MINUTES", "15"))
+    # IP 単位の上限（rate_limit.py）。ID をまたぐ試行と /register の存在確認を抑える。
+    auth_rate_limit_max: int = int(os.getenv("AUTH_RATE_LIMIT_MAX", "30"))
+    auth_rate_limit_window_minutes: int = int(
+        os.getenv("AUTH_RATE_LIMIT_WINDOW_MINUTES", "15")
+    )
 
     # --- Supabase Storage（お祝い画像の本番保存先）---
     # 未設定なら storage.py が data URL(base64) にフォールバックする（ローカル開発用）。

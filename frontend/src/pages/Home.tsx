@@ -23,8 +23,8 @@ export default function Home() {
   const [settling, setSettling] = useState(false);
   const [settleError, setSettleError] = useState("");
   const [celebrationUrl, setCelebrationUrl] = useState<string | null>(null);
-  // お祝い設定はマウント時に1回だけ取得して保持する（記録のたびに再取得しない）。
-  // 設定変更は別ルート(/settings)でのみ起き、戻ると Home が再マウントされ再取得される。
+  // ON/OFF はマウント時の値を使う（個人設定で、変更は別ルート /settings でのみ起きる）。
+  // 画像は相手も追加/削除できるため、ONの人だけ記録のたびに最新の一覧を取り直す。
   const [celebration, setCelebration] = useState<CelebrationSettings | null>(null);
 
   const refresh = useCallback(async () => {
@@ -73,13 +73,19 @@ export default function Home() {
   async function addPayment(values: PaymentFormValues) {
     await api.post<Payment>("/api/payments", values);
     await refresh();
-    // 記録成功後にお祝い画像ダイアログを表示（マウント時に取得済みの設定を使う）。
-    // 編集(updatePayment)では表示しない。複数枚あればランダムに1枚選ぶ。
-    if (celebration?.celebration_enabled && celebration.images.length > 0) {
-      const pick =
-        celebration.images[
-          Math.floor(Math.random() * celebration.images.length)
-        ];
+    // 記録成功後にお祝い画像ダイアログを表示。編集(updatePayment)では表示しない。
+    if (celebration?.celebration_enabled) void showCelebration(celebration);
+  }
+
+  async function showCelebration(cached: CelebrationSettings) {
+    // 取得に失敗しても記録自体は成功しているので、手元の一覧で表示する。
+    const latest = await api
+      .get<CelebrationSettings>("/api/me/celebration")
+      .catch(() => cached);
+    setCelebration(latest);
+    if (latest.celebration_enabled && latest.images.length > 0) {
+      // 複数枚あればランダムに1枚選ぶ。
+      const pick = latest.images[Math.floor(Math.random() * latest.images.length)];
       setCelebrationUrl(pick.url);
     }
   }

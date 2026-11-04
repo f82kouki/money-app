@@ -1,4 +1,5 @@
 """認証ルーター: 登録 / ログイン / ログアウト / 自分情報。"""
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,6 +10,7 @@ from ..config import settings
 from ..db import get_db
 from ..logging_config import logger
 from ..models import User
+from ..rate_limit import enforce_auth_rate_limit
 from ..schemas import (
     AikotobaLoginIn,
     AikotobaSetIn,
@@ -24,7 +26,6 @@ from ..security import (
     get_current_user,
     hash_aikotoba,
     hash_password,
-    verify_aikotoba,
     verify_password,
 )
 
@@ -36,7 +37,12 @@ def _as_aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-@router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=TokenOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
     exists = db.scalar(select(User).where(User.email == body.email))
     if exists:
@@ -52,6 +58,15 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
     logger.info("ユーザー登録: id=%s", user.id)
     # display_name はグループ参加時に使うので、ここでは保持しない（最初のメンバー作成時に入力）
     return TokenOut(access_token=create_access_token(user))
+
+
+def _find_user_for_login(db: Session, email: str) -> User | None:
+    """ログイン検証用にユーザーを行ロック付きで読む（L1）。
+
+    検証〜失敗記録の間ロックを保持し、同時試行でカウンタの更新が失われて
+    ロックをすり抜けるのを防ぐ。SQLite では FOR UPDATE は無視される。
+    """
+    return db.scalar(select(User).where(User.email == email).with_for_update())
 
 
 def _locked_exc() -> HTTPException:
@@ -93,53 +108,64 @@ def _apply_login_result(
     return TokenOut(access_token=create_access_token(user))
 
 
-@router.post("/login", response_model=TokenOut)
+def _login_with_secret(
+    db: Session,
+    email: str,
+    secret: str,
+    stored_hash: Callable[[User], str | None],
+    invalid: HTTPException,
+) -> TokenOut:
+    """パスワード/あいことば共通のログイン手順（L1 ロック・L2 タイミング平準化）。"""
+    user = _find_user_for_login(db, email)
+    if user is None:
+        # ユーザー不在でも本物と同等の時間を使い、列挙を防ぐ（L2）。
+        dummy_verify_password(secret)
+        raise invalid
+
+    now = datetime.now(timezone.utc)
+    # ロック中は正否に関わらず弾く。カウンタは経路をまたいで共有する（L1）。
+    if user.locked_until is not None and _as_aware(user.locked_until) > now:
+        raise _locked_exc()
+
+    hashed = stored_hash(user)
+    if hashed is None:
+        # あいことば未設定は常に失敗扱い。ただし時間を平準化してから弾く（L2）。
+        dummy_verify_password(secret)
+        secret_ok = False
+    else:
+        secret_ok = verify_password(secret, hashed)
+    return _apply_login_result(user, secret_ok, db, now, invalid)
+
+
+@router.post(
+    "/login",
+    response_model=TokenOut,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 def login(body: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
     invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="メールアドレスまたはパスワードが違います",
     )
-
-    user = db.scalar(select(User).where(User.email == body.email))
-    if user is None:
-        # ユーザー不在でも本物と同等の時間を使い、列挙を防ぐ（L2）。
-        dummy_verify_password(body.password)
-        raise invalid
-
-    now = datetime.now(timezone.utc)
-    # ロック中はパスワードの正否に関わらず弾く（L1）。
-    if user.locked_until is not None and _as_aware(user.locked_until) > now:
-        raise _locked_exc()
-
-    secret_ok = verify_password(body.password, user.password_hash)
-    return _apply_login_result(user, secret_ok, db, now, invalid)
+    return _login_with_secret(
+        db, body.email, body.password, lambda u: u.password_hash, invalid
+    )
 
 
-@router.post("/login-aikotoba", response_model=TokenOut)
+@router.post(
+    "/login-aikotoba",
+    response_model=TokenOut,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 def login_aikotoba(body: AikotobaLoginIn, db: Session = Depends(get_db)) -> TokenOut:
     """ユーザーID＋あいことばで再ログインする（パスワードと同じ防御フロー）。"""
     invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="ユーザーIDまたはあいことばが違います",
     )
-
-    user = db.scalar(select(User).where(User.email == body.email))
-    if user is None:
-        dummy_verify_password(body.aikotoba)
-        raise invalid
-
-    now = datetime.now(timezone.utc)
-    # ロックはパスワードと共有カウンタ（別経路でロックを回避させない・L1）。
-    if user.locked_until is not None and _as_aware(user.locked_until) > now:
-        raise _locked_exc()
-
-    # あいことば未設定は常に失敗扱い。ただし時間を平準化してから弾く（L2）。
-    if user.aikotoba_hash is None:
-        dummy_verify_password(body.aikotoba)
-        secret_ok = False
-    else:
-        secret_ok = verify_aikotoba(body.aikotoba, user.aikotoba_hash)
-    return _apply_login_result(user, secret_ok, db, now, invalid)
+    return _login_with_secret(
+        db, body.email, body.aikotoba, lambda u: u.aikotoba_hash, invalid
+    )
 
 
 @router.get("/aikotoba", response_model=AikotobaStateOut)

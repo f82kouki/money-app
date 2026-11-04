@@ -99,7 +99,20 @@ class CelebrationImage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     user: Mapped[User] = relationship(back_populates="celebration_images")
-    group: Mapped["Group"] = relationship(back_populates="celebration_images")
+
+
+class AuthRateLimit(Base):
+    """認証 API の IP 単位レート制限カウンタ（固定窓。rate_limit.py が更新する）。
+
+    サーバーレスはプロセス間でメモリを共有しないため DB に持つ。key は IP の HMAC で、
+    生の IP は保存しない。
+    """
+
+    __tablename__ = "auth_rate_limits"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    hits: Mapped[int] = mapped_column(Integer)
 
 
 class Group(Base):
@@ -115,12 +128,6 @@ class Group(Base):
     )
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"
-    )
-    # お祝い画像（2人で共有）。孤児削除は User.celebration_images 側が担うため、
-    # ここでは delete-orphan を付けず参照専用の relationship にする。
-    celebration_images: Mapped[list["CelebrationImage"]] = relationship(
-        back_populates="group",
-        order_by="CelebrationImage.created_at.asc()",
     )
     messages: Mapped[list["Message"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"

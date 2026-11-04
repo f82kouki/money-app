@@ -65,6 +65,9 @@ export default function Login() {
           <input
             type="text"
             autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="あいことば"
             value={aikotoba}
             onChange={(e) => setAikotoba(e.target.value)}
