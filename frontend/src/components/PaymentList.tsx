@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { Member, Payment } from "../types";
+import type { Label, Member, Payment } from "../types";
 import ConfirmDialog from "./ConfirmDialog";
 import PaymentForm, { type PaymentFormValues } from "./PaymentForm";
 
@@ -15,6 +15,7 @@ function nameOf(members: Member[], id: string): string {
 interface Props {
   payments: Payment[];
   members: Member[];
+  labels: Label[];
   myMemberId: string;
   onUpdate: (id: string, values: PaymentFormValues) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -23,6 +24,7 @@ interface Props {
 export default function PaymentList({
   payments,
   members,
+  labels,
   myMemberId,
   onUpdate,
   onDelete,
@@ -58,6 +60,7 @@ export default function PaymentList({
             <PaymentForm
               key={p.id}
               members={members}
+              labels={labels}
               defaultPayerId={myMemberId}
               initial={{
                 payer_member_id: p.payer_member_id,
@@ -65,6 +68,7 @@ export default function PaymentList({
                 category: p.category,
                 paid_at: p.paid_at,
                 split_type: p.split_type,
+                label_ids: p.labels.map((label) => label.id),
               }}
               submitLabel="更新する"
               onCancel={() => setEditingId(null)}
@@ -114,6 +118,19 @@ export default function PaymentList({
                 </div>
                 {p.category && (
                   <div className="mt-0.5 text-sm opacity-80">{p.category}</div>
+                )}
+                {/* 金額の行に足すと「立替」「精算済」と並んであふれるので別の行にする */}
+                {p.labels.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {p.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="max-w-full truncate rounded-full border border-primary-mid px-1.5 py-0.5 text-[10px] font-bold text-primary-text"
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
 

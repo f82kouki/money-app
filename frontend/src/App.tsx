@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import GroupSetup from "./pages/GroupSetup";
 import Home from "./pages/Home";
+import Labels from "./pages/Labels";
 import Login from "./pages/Login";
 import Messages from "./pages/Messages";
 import Register from "./pages/Register";
@@ -36,6 +37,14 @@ export default function App() {
           element={
             <RequireAuth>
               <GroupSetup />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/labels"
+          element={
+            <RequireAuth>
+              <Labels />
             </RequireAuth>
           }
         />

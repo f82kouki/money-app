@@ -17,6 +17,7 @@ from .logging_config import logger
 from .routers import (
     auth,
     groups,
+    labels,
     messages,
     payments,
     settings as settings_router,
@@ -125,6 +126,7 @@ app.include_router(groups.router)
 app.include_router(payments.router)
 app.include_router(settings_router.router)
 app.include_router(messages.router)
+app.include_router(labels.router)
 
 
 @app.on_event("startup")

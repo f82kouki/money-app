@@ -4,11 +4,13 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    Column,
     Date,
     DateTime,
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
     UniqueConstraint,
     false,
@@ -156,6 +158,42 @@ class GroupMember(Base):
     user: Mapped[User] = relationship(back_populates="memberships")
 
 
+# 支払いとラベルの中間テーブル（1件に複数のラベルを付けられる）。
+# 旧コードはこの表を知らないので、ロールバック後もラベル付きの支払いを削除できるよう、
+# 行の連動削除を DB 側の ON DELETE CASCADE で担保する。
+payment_labels = Table(
+    "payment_labels",
+    Base.metadata,
+    Column(
+        "payment_id", ForeignKey("payments.id", ondelete="CASCADE"), primary_key=True
+    ),
+    Column(
+        "label_id",
+        ForeignKey("labels.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    ),
+)
+
+
+class Label(Base):
+    """支払いに付ける分類ラベル。グループ（2人）で共有し、ラベルページで編集する。"""
+
+    __tablename__ = "labels"
+    # 一意制約が group_id での検索も兼ねるので、group_id に index は付けない。
+    __table_args__ = (
+        UniqueConstraint("group_id", "name", name="uq_labels_group_name"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    group_id: Mapped[str] = mapped_column(ForeignKey("groups.id"))
+    # schemas.py の LABEL_NAME_MAX_CHARS とそろえる。
+    name: Mapped[str] = mapped_column(String(20))
+    # 同時に投入した初期ラベルは created_at では順序が決まらないため、並び順を持つ。
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Payment(Base):
     __tablename__ = "payments"
 
@@ -180,6 +218,9 @@ class Payment(Base):
 
     group: Mapped[Group] = relationship(back_populates="payments")
     payer: Mapped[GroupMember] = relationship()
+    labels: Mapped[list[Label]] = relationship(
+        secondary=payment_labels, order_by="Label.sort_order"
+    )
 
 
 class Settlement(Base):

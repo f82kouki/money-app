@@ -1,7 +1,7 @@
 """SQLAlchemy のエンジン・セッション・Base 定義。"""
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, inspect, select, update
+from sqlalchemy import create_engine, exists, inspect, select, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -287,6 +287,26 @@ def _migrate_celebration_image_to_table() -> None:
             db.commit()
 
 
+def _seed_default_labels() -> None:
+    """ラベルが1件も無いグループへ初期ラベルを入れる（冪等）。
+
+    init_db() はデプロイのたびに走る。「足りない初期ラベルを足す」方式にすると、
+    利用者が削除・改名した初期ラベルが毎回復活するので、空のグループだけを対象にする。
+    新規グループには create_group が同じラベルを入れる。
+    """
+    from .default_labels import build_default_labels
+    from .models import Group, Label
+
+    with SessionLocal() as db:
+        group_ids = db.scalars(
+            select(Group.id).where(~exists().where(Label.group_id == Group.id))
+        ).all()
+        for group_id in group_ids:
+            db.add_all(build_default_labels(group_id))
+        if group_ids:
+            db.commit()
+
+
 def init_db() -> None:
     """全テーブルを作成する（make db-init から呼ぶ）。"""
     from . import models  # noqa: F401  モデル登録のため import
@@ -302,3 +322,4 @@ def init_db() -> None:
     _migrate_celebration_image_to_table()
     # 旧単数列→表(_migrate_...)の後に、表の各行へ group_id をバックフィルする。
     _backfill_celebration_image_group()
+    _seed_default_labels()

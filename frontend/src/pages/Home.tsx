@@ -8,7 +8,13 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import PaymentForm, { type PaymentFormValues } from "../components/PaymentForm";
 import PaymentList from "../components/PaymentList";
 import SummaryCard from "../components/SummaryCard";
-import type { CelebrationSettings, Group, Payment, Summary } from "../types";
+import type {
+  CelebrationSettings,
+  Group,
+  Label,
+  Payment,
+  Summary,
+} from "../types";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -26,6 +32,7 @@ export default function Home() {
   // ON/OFF はマウント時の値を使う（個人設定で、変更は別ルート /settings でのみ起きる）。
   // 画像は相手も追加/削除できるため、ONの人だけ記録のたびに最新の一覧を取り直す。
   const [celebration, setCelebration] = useState<CelebrationSettings | null>(null);
+  const [labels, setLabels] = useState<Label[]>([]);
 
   const refresh = useCallback(async () => {
     const [s, p] = await Promise.all([
@@ -67,6 +74,15 @@ export default function Home() {
     api
       .get<CelebrationSettings>("/api/me/celebration")
       .then(setCelebration)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    // ラベルも付随機能なので、取得に失敗しても記録は止めない。
+    // /labels から戻ると Home は再マウントされるので、編集結果はここで反映される。
+    api
+      .get<Label[]>("/api/labels")
+      .then(setLabels)
       .catch(() => {});
   }, []);
 
@@ -297,6 +313,28 @@ export default function Home() {
           </Link>
 
           <Link
+            to="/labels"
+            onClick={closeMenu}
+            className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-slate-700 hover:bg-primary-light"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-slate-500"
+            >
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            ラベル
+          </Link>
+
+          <Link
             to="/messages"
             onClick={closeMenu}
             className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-slate-700 hover:bg-primary-light"
@@ -370,6 +408,7 @@ export default function Home() {
           <h2 className="mb-2 text-sm font-semibold text-slate-500">支払いを記録</h2>
           <PaymentForm
             members={group.members}
+            labels={labels}
             defaultPayerId={group.my_member_id}
             playSoundOnSubmit
             onSubmit={addPayment}
@@ -381,6 +420,7 @@ export default function Home() {
           <PaymentList
             payments={payments}
             members={group.members}
+            labels={labels}
             myMemberId={group.my_member_id}
             onUpdate={updatePayment}
             onDelete={deletePayment}

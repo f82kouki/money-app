@@ -15,6 +15,14 @@ export interface Group {
 // 精算の種別: warikan=2人で折半 / tatekae=相手が全額負担(立て替え/貸し)
 export type SplitType = "warikan" | "tatekae";
 
+export interface Label {
+  id: string;
+  name: string;
+  payment_count: number; // このラベルが付いた記録の件数
+}
+
+export type PaymentLabel = Pick<Label, "id" | "name">;
+
 export interface Payment {
   id: string;
   payer_member_id: string;
@@ -24,6 +32,7 @@ export interface Payment {
   split_type: SplitType;
   settlement_id: string | null; // 精算済みなら settlement の ID（未精算は null）
   created_at: string;
+  labels: PaymentLabel[];
 }
 
 export interface Settlement {

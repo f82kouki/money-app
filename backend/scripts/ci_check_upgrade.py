@@ -45,6 +45,17 @@ def count_unfilled_images() -> int:
         ).scalar_one()
 
 
+def count_groups_without_labels() -> int:
+    """初期ラベルが投入されていないグループの数。"""
+    with engine.connect() as conn:
+        return conn.execute(
+            text(
+                "SELECT count(*) FROM groups g "
+                "WHERE NOT EXISTS (SELECT 1 FROM labels l WHERE l.group_id = g.id)"
+            )
+        ).scalar_one()
+
+
 def main() -> None:
     drift = find_schema_drift()
     assert not has_drift(drift), f"schema drift: {drift}"
@@ -52,6 +63,8 @@ def main() -> None:
     assert not constraints, f"constraint drift: {constraints}"
     unfilled = count_unfilled_images()
     assert unfilled == 0, f"backfill incomplete: {unfilled} rows"
+    unlabeled = count_groups_without_labels()
+    assert unlabeled == 0, f"default labels missing: {unlabeled} groups"
     print("upgrade ok: no schema/constraint drift, backfill complete")
 
 
