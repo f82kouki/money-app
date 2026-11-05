@@ -103,6 +103,24 @@ class CelebrationImage(Base):
     user: Mapped[User] = relationship(back_populates="celebration_images")
 
 
+class UserTheme(Base):
+    """テーマカラー（各自の設定）。行が無ければ標準のピンクを使う。
+
+    users の列にすると、get_current_user の毎リクエスト select(User) が読むため、
+    列が無い状態で新コードが動くと認証が全停止する。付随機能なので別テーブルに置く。
+    """
+
+    __tablename__ = "user_themes"
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    color: Mapped[str] = mapped_column(String(7))  # "#RRGGBB"
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
 class AuthRateLimit(Base):
     """認証 API の IP 単位レート制限カウンタ（固定窓。rate_limit.py が更新する）。
 

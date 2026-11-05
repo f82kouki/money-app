@@ -1,20 +1,23 @@
-"""ユーザー個人設定ルーター: 記録時のお祝い画像（複数枚アップロード/トグル）。"""
+"""ユーザー個人設定ルーター: お祝い画像（複数枚アップロード/トグル）とテーマカラー。"""
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from .. import storage
 from ..db import get_db
 from ..deps import get_current_membership
-from ..models import CelebrationImage, GroupMember, User
+from ..models import CelebrationImage, GroupMember, User, UserTheme
 from ..schemas import (
     CelebrationImageOut,
     CelebrationOut,
     CelebrationStateOut,
     CelebrationToggleIn,
+    ThemeIn,
+    ThemeOut,
 )
 from ..security import get_current_user
 
@@ -162,3 +165,36 @@ def delete_celebration_image(
     db.delete(image)
     db.commit()
     return _to_out(db, user.celebration_enabled, membership.group_id)
+
+
+@router.get("/theme", response_model=ThemeOut)
+def get_theme(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ThemeOut:
+    theme = db.get(UserTheme, user.id)
+    return ThemeOut(color=theme.color if theme else None)
+
+
+@router.put("/theme", response_model=ThemeOut)
+def update_theme(
+    body: ThemeIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ThemeOut:
+    """テーマカラーを保存する。None は行を消して標準の色へ戻す。"""
+    if body.color is None:
+        db.execute(delete(UserTheme).where(UserTheme.user_id == user.id))
+        db.commit()
+        return ThemeOut(color=None)
+
+    color = body.color.upper()
+    db.merge(UserTheme(user_id=user.id, color=color))
+    try:
+        db.commit()
+    except IntegrityError:
+        # 2台から同時に初回保存すると、片方の INSERT が主キーで衝突する。後勝ちで更新する。
+        db.rollback()
+        db.merge(UserTheme(user_id=user.id, color=color))
+        db.commit()
+    return ThemeOut(color=color)

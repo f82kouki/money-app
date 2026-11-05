@@ -70,6 +70,10 @@ export interface CelebrationSettings {
   images: CelebrationImage[];
 }
 
+export interface ThemeSettings {
+  color: string | null; // 基準の色 "#RRGGBB"。null は標準のテーマ
+}
+
 export interface Message {
   id: string;
   sender_member_id: string;

@@ -118,6 +118,16 @@ class CelebrationStateOut(BaseModel):
     celebration_enabled: bool
 
 
+# ---- テーマカラー ----
+class ThemeIn(BaseModel):
+    # None は標準の色へ戻す。値は CSS へ渡るので、形式を厳密に制限する。
+    color: str | None = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+
+
+class ThemeOut(BaseModel):
+    color: str | None
+
+
 class GroupOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

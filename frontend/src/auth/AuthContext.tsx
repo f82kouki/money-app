@@ -8,6 +8,8 @@ import {
 } from "react";
 
 import { ApiError, api, getToken, setToken } from "../api/client";
+import { applyTheme } from "../theme";
+import type { ThemeSettings } from "../types";
 
 interface TokenOut {
   access_token: string;
@@ -45,6 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
   }, []);
+
+  // テーマカラーは付随機能なので、取得に失敗しても端末の控えの色のまま続ける。
+  // 未ログインでは標準の色へ戻し、次の人へ前の人の色を見せない。
+  useEffect(() => {
+    if (authed === null) return;
+    if (!authed) {
+      applyTheme(null);
+      return;
+    }
+    let active = true;
+    api
+      .get<ThemeSettings>("/api/me/theme")
+      .then((theme) => {
+        if (active) applyTheme(theme.color);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [authed]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.post<TokenOut>("/api/auth/login", { email, password });

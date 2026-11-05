@@ -118,7 +118,7 @@ db-shell:
 
 # 全テーブルの中身をまとめて表示
 db-tables:
-	@for t in users groups group_members payments labels payment_labels; do \
+	@for t in users groups group_members payments labels payment_labels user_themes; do \
 		echo "=========== $$t ==========="; \
 		docker compose exec -T db psql -U warikan -d warikan -c "SELECT * FROM $$t;"; \
 	done

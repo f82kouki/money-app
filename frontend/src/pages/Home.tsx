@@ -387,9 +387,6 @@ export default function Home() {
           <h2 className="text-xl font-bold text-primary-text">
             お会計の金額を入力してね
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            払った人と「お会計の全額」を入れるだけ。半分に割らなくてOK、精算額は自動で計算します。
-          </p>
         </section>
 
         <SummaryCard
