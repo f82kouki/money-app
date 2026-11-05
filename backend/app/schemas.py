@@ -118,6 +118,16 @@ class CelebrationStateOut(BaseModel):
     celebration_enabled: bool
 
 
+# ---- テーマカラー ----
+class ThemeIn(BaseModel):
+    # None は標準の色へ戻す。値は CSS へ渡るので、形式を厳密に制限する。
+    color: str | None = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+
+
+class ThemeOut(BaseModel):
+    color: str | None
+
+
 class GroupOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
@@ -126,6 +136,38 @@ class GroupOut(BaseModel):
     members: list[MemberOut]
     # 現在ログイン中のユーザーに対応する member_id（フロントで「自分」を判定）
     my_member_id: str
+
+
+# ---- ラベル ----
+# 1グループあたりのラベル数の上限と、名前の長さ。フロントにも同じ値を持たせる。
+MAX_LABELS = 50
+LABEL_NAME_MAX_CHARS = 20
+
+
+class LabelIn(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def _normalize(cls, v: str) -> str:
+        # 全半角のゆれ（ｶﾌｪ と カフェ）を同じ名前として一意制約で検出する。
+        v = unicodedata.normalize("NFKC", v).strip()
+        if not 1 <= len(v) <= LABEL_NAME_MAX_CHARS:
+            raise ValueError(f"ラベル名は1〜{LABEL_NAME_MAX_CHARS}文字にしてください")
+        return v
+
+
+class LabelOut(BaseModel):
+    id: str
+    name: str
+    # このラベルが付いた記録の件数（削除の確認に使う）。
+    payment_count: int
+
+
+class PaymentLabelOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
 
 
 # ---- 支払い ----
@@ -143,6 +185,7 @@ class PaymentIn(BaseModel):
     category: str = Field(default="", max_length=100)
     paid_at: date
     split_type: SplitType = "warikan"
+    label_ids: list[str] = Field(default_factory=list, max_length=MAX_LABELS)
 
 
 class PaymentUpdateIn(BaseModel):
@@ -151,6 +194,8 @@ class PaymentUpdateIn(BaseModel):
     category: str | None = Field(default=None, max_length=100)
     paid_at: date | None = None
     split_type: SplitType | None = None
+    # None=変更なし / []=全解除
+    label_ids: list[str] | None = Field(default=None, max_length=MAX_LABELS)
 
 
 class PaymentOut(BaseModel):
@@ -164,6 +209,7 @@ class PaymentOut(BaseModel):
     # 精算済みなら紐づく settlement の ID。未精算は None（集計対象）。
     settlement_id: str | None = None
     created_at: datetime
+    labels: list[PaymentLabelOut]
 
 
 # ---- 精算（リセット） ----

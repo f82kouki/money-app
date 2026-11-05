@@ -6,7 +6,7 @@
 from sqlalchemy import inspect, text
 
 from app import models  # noqa: F401  Base.metadata にテーブルを登録するため
-from app.db import Base, engine
+from app.db import Base, engine, init_db
 from app.schema_check import find_schema_drift, has_drift
 
 
@@ -45,6 +45,42 @@ def count_unfilled_images() -> int:
         ).scalar_one()
 
 
+def count_groups_without_labels() -> int:
+    """初期ラベルが投入されていないグループの数。"""
+    with engine.connect() as conn:
+        return conn.execute(
+            text(
+                "SELECT count(*) FROM groups g "
+                "WHERE NOT EXISTS (SELECT 1 FROM labels l WHERE l.group_id = g.id)"
+            )
+        ).scalar_one()
+
+
+def count_unseeded_groups() -> int:
+    """初期ラベルの投入済み印が付いていないグループの数。"""
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT count(*) FROM groups WHERE NOT labels_seeded")
+        ).scalar_one()
+
+
+def check_emptied_group_stays_empty() -> None:
+    """全ラベルを削除したグループへ、次の init_db() が再投入しないことを確かめる。
+
+    ci.yml の冪等性チェックは init_db() を続けて流すだけなので、利用者の削除が
+    絡むこの不具合は検出できない。データを変更するので main() の最後に呼ぶ。
+    """
+    with engine.begin() as conn:
+        group_id = conn.execute(text("SELECT id FROM groups LIMIT 1")).scalar_one()
+        conn.execute(text("DELETE FROM labels WHERE group_id = :g"), {"g": group_id})
+    init_db()
+    with engine.connect() as conn:
+        left = conn.execute(
+            text("SELECT count(*) FROM labels WHERE group_id = :g"), {"g": group_id}
+        ).scalar_one()
+    assert left == 0, f"default labels came back: {left} labels"
+
+
 def main() -> None:
     drift = find_schema_drift()
     assert not has_drift(drift), f"schema drift: {drift}"
@@ -52,6 +88,11 @@ def main() -> None:
     assert not constraints, f"constraint drift: {constraints}"
     unfilled = count_unfilled_images()
     assert unfilled == 0, f"backfill incomplete: {unfilled} rows"
+    unlabeled = count_groups_without_labels()
+    assert unlabeled == 0, f"default labels missing: {unlabeled} groups"
+    unseeded = count_unseeded_groups()
+    assert unseeded == 0, f"labels_seeded not set: {unseeded} groups"
+    check_emptied_group_stays_empty()
     print("upgrade ok: no schema/constraint drift, backfill complete")
 
 

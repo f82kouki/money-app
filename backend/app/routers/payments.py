@@ -1,12 +1,12 @@
 """支払い ルーター: CRUD + 集計(精算)。"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
 from ..deps import get_current_membership
 from ..logging_config import logger
-from ..models import GroupMember, Payment, Settlement
+from ..models import GroupMember, Label, Payment, Settlement
 from ..schemas import (
     MemberTotal,
     PaymentIn,
@@ -56,6 +56,22 @@ def _member_in_group(db: Session, group_id: str, member_id: str) -> GroupMember:
     return member
 
 
+def _labels_in_group(db: Session, group_id: str, label_ids: list[str]) -> list[Label]:
+    """自グループのラベルだけを返す。存在しない ID は無視する。
+
+    相手が削除した直後のラベルが送られても、記録の保存は止めない。付けた後に削除された
+    場合と結果が同じになる。他グループの ID もここで除外されるので、付与はできない。
+    """
+    ids = set(label_ids)
+    if not ids:
+        return []
+    return list(
+        db.scalars(
+            select(Label).where(Label.group_id == group_id, Label.id.in_(ids))
+        ).all()
+    )
+
+
 @router.get("/payments", response_model=list[PaymentOut])
 def list_payments(
     membership: GroupMember = Depends(get_current_membership),
@@ -63,6 +79,7 @@ def list_payments(
 ) -> list[Payment]:
     rows = db.scalars(
         select(Payment)
+        .options(selectinload(Payment.labels))  # 無いと支払い1件ごとにクエリが走る
         .where(Payment.group_id == membership.group_id)
         .order_by(Payment.paid_at.desc(), Payment.created_at.desc())
     ).all()
@@ -76,6 +93,7 @@ def create_payment(
     db: Session = Depends(get_db),
 ) -> Payment:
     _member_in_group(db, membership.group_id, body.payer_member_id)
+    labels = _labels_in_group(db, membership.group_id, body.label_ids)
     payment = Payment(
         group_id=membership.group_id,
         payer_member_id=body.payer_member_id,
@@ -84,6 +102,7 @@ def create_payment(
         paid_at=body.paid_at,
         split_type=body.split_type,
         created_by=membership.user_id,
+        labels=labels,
     )
     db.add(payment)
     db.commit()
@@ -126,6 +145,8 @@ def update_payment(
         payment.paid_at = body.paid_at
     if body.split_type is not None:
         payment.split_type = body.split_type
+    if body.label_ids is not None:
+        payment.labels = _labels_in_group(db, membership.group_id, body.label_ids)
     db.commit()
     db.refresh(payment)
     return payment

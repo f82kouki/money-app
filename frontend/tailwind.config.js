@@ -11,20 +11,21 @@ export default {
           "sans-serif",
         ],
       },
+      // テーマカラーで切り替えるため、値は CSS 変数で持つ。標準の値は src/index.css の :root。
+      // <alpha-value> は text-primary-text/70 のような透明度の指定に必要。
       colors: {
+        page: "rgb(var(--color-page) / <alpha-value>)",
         primary: {
-          light: "#FFF2F7",
-          DEFAULT: "#FFE5EF",
-          mid: "#F8A5C2",
-          dark: "#FFD0E0",
-          text: "#C2185B",
+          light: "rgb(var(--color-primary-light) / <alpha-value>)",
+          DEFAULT: "rgb(var(--color-primary) / <alpha-value>)",
+          mid: "rgb(var(--color-primary-mid) / <alpha-value>)",
+          text: "rgb(var(--color-primary-text) / <alpha-value>)",
         },
-        // 主役ボタン(CTA)専用のローズ。淡い primary と差をつけて「押すボタン」を明確にする。
-        // 少しだけ淡いローズ（旧 #EC4899 から1段やわらかく）。hover/active は旧色で軽く濃く。
+        // 主役ボタン(CTA)専用の色。淡い primary と差をつけて「押すボタン」を明確にする。
         cta: {
-          DEFAULT: "#F368A8",
-          hover: "#EC4899",
-          fg: "#FFFFFF",
+          DEFAULT: "rgb(var(--color-cta) / <alpha-value>)",
+          hover: "rgb(var(--color-cta-hover) / <alpha-value>)",
+          fg: "rgb(var(--color-cta-fg) / <alpha-value>)",
         },
       },
     },

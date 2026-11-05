@@ -7,6 +7,20 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#FFE5EF" />
+    <script>
+      // 最初の描画の前に前回のテーマを当て、標準の色が一瞬見えるのを防ぐ（値は src/theme.ts が保存する）。
+      try {
+        var theme = JSON.parse(localStorage.getItem("warikan_theme"));
+        if (theme) {
+          for (var name in theme.variables) {
+            document.documentElement.style.setProperty(name, theme.variables[name]);
+          }
+          document.querySelector('meta[name="theme-color"]').content = theme.metaColor;
+        }
+      } catch (e) {
+        // 保存値が読めなければ標準の色のまま
+      }
+    </script>
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />

@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 
-import type { Member, SplitType } from "../types";
+import type { Label, Member, SplitType } from "../types";
 import { playChari } from "../utils/sound";
 import Button from "./Button";
+import LabelPicker from "./LabelPicker";
 
 export interface PaymentFormValues {
   payer_member_id: string;
@@ -10,6 +11,7 @@ export interface PaymentFormValues {
   category: string;
   paid_at: string;
   split_type: SplitType;
+  label_ids: string[];
 }
 
 // バックエンド(schemas.py MAX_AMOUNT)と揃える。桁あふれ/過大入力をサーバー到達前に弾く。
@@ -24,6 +26,7 @@ function todayStr(): string {
 
 interface Props {
   members: Member[];
+  labels: Label[];
   defaultPayerId: string;
   initial?: PaymentFormValues;
   submitLabel?: string;
@@ -35,6 +38,7 @@ interface Props {
 
 export default function PaymentForm({
   members,
+  labels,
   defaultPayerId,
   initial,
   submitLabel = "記録する",
@@ -49,6 +53,7 @@ export default function PaymentForm({
   const [splitType, setSplitType] = useState<SplitType>(
     initial?.split_type ?? "warikan"
   );
+  const [labelIds, setLabelIds] = useState<string[]>(initial?.label_ids ?? []);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -83,11 +88,13 @@ export default function PaymentForm({
         category: category.trim(),
         paid_at: paidAt,
         split_type: splitType,
+        label_ids: labelIds,
       });
       if (!initial) {
         // 新規追加後はフォームをリセット（連続入力しやすく）
         setAmount("");
         setCategory("");
+        setLabelIds([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存に失敗しました");
@@ -160,6 +167,15 @@ export default function PaymentForm({
           </p>
         )}
       </div>
+
+      {/* ラベル（任意）。取得できなかったときは欄ごと出さず、付いているラベルは維持する */}
+      {labels.length > 0 && (
+        <LabelPicker
+          labels={labels}
+          selectedIds={labelIds}
+          onChange={setLabelIds}
+        />
+      )}
 
       {/* 項目・日付 */}
       <input

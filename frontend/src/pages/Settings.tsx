@@ -5,6 +5,7 @@ import { ApiError, api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
+import ThemePicker from "../components/ThemePicker";
 import type {
   CelebrationImage,
   CelebrationSettings,
@@ -258,6 +259,8 @@ export default function Settings() {
             {saving ? "保存中…" : "保存"}
           </Button>
         </section>
+
+        <ThemePicker />
 
         {/* 記録時の表示画像（複数枚） */}
         <section className="rounded-2xl bg-white p-4 shadow">
