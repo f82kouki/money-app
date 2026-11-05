@@ -287,23 +287,50 @@ def _migrate_celebration_image_to_table() -> None:
             db.commit()
 
 
-def _seed_default_labels() -> None:
-    """ラベルが1件も無いグループへ初期ラベルを入れる（冪等）。
+def _ensure_group_labels_seeded_column() -> None:
+    """groups に labels_seeded 列を冪等に追加する（初期ラベルの再投入防止）。
 
-    init_db() はデプロイのたびに走る。「足りない初期ラベルを足す」方式にすると、
-    利用者が削除・改名した初期ラベルが毎回復活するので、空のグループだけを対象にする。
-    新規グループには create_group が同じラベルを入れる。
+    旧コードの INSERT はこの列を指定しないので、DEFAULT が必須。既存行は未投入として
+    扱い、_seed_default_labels が処理する。
+    """
+    insp = inspect(engine)
+    if "groups" not in insp.get_table_names():
+        return
+    if "labels_seeded" in {c["name"] for c in insp.get_columns("groups")}:
+        return
+    is_sqlite = engine.dialect.name == "sqlite"
+    bool_false = "0" if is_sqlite else "false"
+    if_not_exists = "" if is_sqlite else "IF NOT EXISTS "
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            f"ALTER TABLE groups ADD COLUMN {if_not_exists}labels_seeded "
+            f"BOOLEAN NOT NULL DEFAULT {bool_false}"
+        )
+
+
+def _seed_default_labels() -> None:
+    """未投入のグループへ初期ラベルを1回だけ入れる（冪等）。
+
+    init_db() はデプロイのたびに走るので、投入済みを labels_seeded で覚える。
+    ラベルの有無で判定すると、利用者が全削除したグループへ初期ラベルが戻る。
+    新規グループには create_group が同じラベルを入れ、投入済みにする。
     """
     from .default_labels import build_default_labels
     from .models import Group, Label
 
     with SessionLocal() as db:
-        group_ids = db.scalars(
-            select(Group.id).where(~exists().where(Label.group_id == Group.id))
+        groups = db.scalars(
+            select(Group)
+            .where(Group.labels_seeded.is_(False))
+            # 並行実行で同じグループへ二重に投入しないよう、行をロックする。
+            .with_for_update(skip_locked=True)
         ).all()
-        for group_id in group_ids:
-            db.add_all(build_default_labels(group_id))
-        if group_ids:
+        for group in groups:
+            # 既にラベルがあるグループ（投入済みのローカル DB など）は印だけ付ける。
+            if not db.scalar(select(exists().where(Label.group_id == group.id))):
+                db.add_all(build_default_labels(group.id))
+            group.labels_seeded = True
+        if groups:
             db.commit()
 
 
@@ -319,6 +346,7 @@ def init_db() -> None:
     _ensure_payment_settlement_column()
     _ensure_celebration_image_group_column()
     _ensure_group_member_user_unique()
+    _ensure_group_labels_seeded_column()
     _migrate_celebration_image_to_table()
     # 旧単数列→表(_migrate_...)の後に、表の各行へ group_id をバックフィルする。
     _backfill_celebration_image_group()

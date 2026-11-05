@@ -58,7 +58,9 @@ def create_group(
             status_code=status.HTTP_409_CONFLICT,
             detail="既にグループに所属しています",
         )
-    group = Group(name=body.name, invite_code=_new_invite_code(db))
+    group = Group(
+        name=body.name, invite_code=_new_invite_code(db), labels_seeded=True
+    )
     db.add(group)
     db.flush()
     member = GroupMember(

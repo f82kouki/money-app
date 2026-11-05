@@ -124,6 +124,10 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String(100))
     invite_code: Mapped[str] = mapped_column(String(12), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    # 初期ラベルを投入済みか。利用者が全削除したグループへ init_db() が再投入しないよう覚える。
+    labels_seeded: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
 
     members: Mapped[list["GroupMember"]] = relationship(
         back_populates="group", cascade="all, delete-orphan"
