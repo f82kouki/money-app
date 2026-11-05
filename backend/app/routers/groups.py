@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..default_labels import build_default_labels
 from ..deps import get_current_membership
 from ..logging_config import logger
 from ..models import Group, GroupMember, User
@@ -57,13 +58,16 @@ def create_group(
             status_code=status.HTTP_409_CONFLICT,
             detail="既にグループに所属しています",
         )
-    group = Group(name=body.name, invite_code=_new_invite_code(db))
+    group = Group(
+        name=body.name, invite_code=_new_invite_code(db), labels_seeded=True
+    )
     db.add(group)
     db.flush()
     member = GroupMember(
         group_id=group.id, user_id=user.id, display_name=body.display_name
     )
     db.add(member)
+    db.add_all(build_default_labels(group.id))
     try:
         db.commit()
     except IntegrityError:

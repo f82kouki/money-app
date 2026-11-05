@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 標準のテーマ（ピンク）。src/theme.ts の STANDARD_COLORS とそろえる。 */
+:root {
+  --color-page: 255 245 248;
+  --color-primary-light: 255 242 247;
+  --color-primary: 255 229 239;
+  --color-primary-mid: 248 165 194;
+  --color-primary-text: 194 24 91;
+  --color-cta: 243 104 168;
+  --color-cta-hover: 236 72 153;
+  --color-cta-fg: 255 255 255;
+}
+
 html,
 body,
 #root {
@@ -9,6 +21,6 @@ body,
 }
 
 body {
-  @apply bg-[#FFF5F8] text-slate-900;
+  @apply bg-page text-slate-900;
   -webkit-tap-highlight-color: transparent;
 }

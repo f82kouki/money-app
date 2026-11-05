@@ -17,6 +17,7 @@ from .logging_config import logger
 from .routers import (
     auth,
     groups,
+    labels,
     messages,
     payments,
     settings as settings_router,
@@ -114,7 +115,8 @@ async def on_validation_error(request: Request, exc: RequestValidationError):
         "%s %s -> 422 入力エラー: %s",
         request.method,
         request.url.path,
-        exc.errors(),
+        # input には平文のパスワード/あいことばが入り得るためログへ出さない。
+        [{k: v for k, v in e.items() if k != "input"} for e in exc.errors()],
     )
     return await request_validation_exception_handler(request, exc)
 
@@ -124,6 +126,7 @@ app.include_router(groups.router)
 app.include_router(payments.router)
 app.include_router(settings_router.router)
 app.include_router(messages.router)
+app.include_router(labels.router)
 
 
 @app.on_event("startup")

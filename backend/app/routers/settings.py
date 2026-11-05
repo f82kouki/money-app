@@ -1,19 +1,23 @@
-"""ユーザー個人設定ルーター: 記録時のお祝い画像（複数枚アップロード/トグル）。"""
+"""ユーザー個人設定ルーター: お祝い画像（複数枚アップロード/トグル）とテーマカラー。"""
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from .. import storage
 from ..db import get_db
-from ..models import CelebrationImage, User
+from ..deps import get_current_membership
+from ..models import CelebrationImage, GroupMember, User, UserTheme
 from ..schemas import (
     CelebrationImageOut,
     CelebrationOut,
     CelebrationStateOut,
     CelebrationToggleIn,
+    ThemeIn,
+    ThemeOut,
 )
 from ..security import get_current_user
 
@@ -22,7 +26,7 @@ router = APIRouter(prefix="/api/me", tags=["settings"])
 # アップロード許可（MIME ホワイトリスト）。SVG はスクリプト混入の恐れがあるため不許可。
 _ALLOWED = {"image/jpeg", "image/png", "image/webp"}
 _MAX_BYTES = 2 * 1024 * 1024  # 2MB
-_MAX_IMAGES = 5  # 1ユーザーあたりの保存上限
+_MAX_IMAGES = 5  # グループ(2人)あたりの保存上限。画像は2人で共有する。
 
 
 def _sniff_image_mime(content: bytes) -> str | None:
@@ -40,18 +44,19 @@ def _sniff_image_mime(content: bytes) -> str | None:
     return None
 
 
-def _images_of(db: Session, user_id: str) -> list[CelebrationImage]:
+def _images_of(db: Session, group_id: str) -> list[CelebrationImage]:
     return list(
         db.scalars(
             select(CelebrationImage)
-            .where(CelebrationImage.user_id == user_id)
+            .where(CelebrationImage.group_id == group_id)
             .order_by(CelebrationImage.created_at.asc())
         ).all()
     )
 
 
-def _to_out(db: Session, user: User) -> CelebrationOut:
-    imgs = _images_of(db, user.id)
+def _to_out(db: Session, enabled: bool, group_id: str) -> CelebrationOut:
+    """お祝い設定を返す。enabled は個人の ON/OFF、画像はグループ共有。"""
+    imgs = _images_of(db, group_id)
     images: list[CelebrationImageOut] = []
     if imgs:
         # 署名URL発行は画像ごとのネットワーク往復。逐次だと最大5回直列になるため、
@@ -62,7 +67,7 @@ def _to_out(db: Session, user: User) -> CelebrationOut:
             if url:  # 署名URL発行に失敗した画像はスキップ（設定画面を500にしない）
                 images.append(CelebrationImageOut(id=img.id, url=url))
     return CelebrationOut(
-        celebration_enabled=user.celebration_enabled,
+        celebration_enabled=enabled,
         images=images,
     )
 
@@ -70,9 +75,11 @@ def _to_out(db: Session, user: User) -> CelebrationOut:
 @router.get("/celebration", response_model=CelebrationOut)
 def get_celebration(
     user: User = Depends(get_current_user),
+    membership: GroupMember = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ) -> CelebrationOut:
-    return _to_out(db, user)
+    # ON/OFF は個人設定（user）、画像はグループ共有（membership.group_id）。
+    return _to_out(db, user.celebration_enabled, membership.group_id)
 
 
 @router.patch("/celebration", response_model=CelebrationStateOut)
@@ -92,9 +99,12 @@ def update_celebration(
 async def upload_celebration_image(
     file: UploadFile,
     user: User = Depends(get_current_user),
+    membership: GroupMember = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ) -> CelebrationOut:
-    if len(_images_of(db, user.id)) >= _MAX_IMAGES:
+    group_id = membership.group_id
+    # 上限はグループ合算（2人で最大 _MAX_IMAGES 枚）。
+    if len(_images_of(db, group_id)) >= _MAX_IMAGES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"画像は最大{_MAX_IMAGES}枚までです",
@@ -122,30 +132,69 @@ async def upload_celebration_image(
         )
 
     # 先に行を作って ID を確定させ、その ID で Storage のオブジェクトキーを分ける。
-    image = CelebrationImage(user_id=user.id, image="")
+    # 共有先は group_id、user_id は「誰が追加したか」の記録として残す。
+    # commit 後に読むと event loop 上で再 SELECT が走るため先に取り出す（M4）。
+    enabled = user.celebration_enabled
+    image = CelebrationImage(user_id=user.id, group_id=group_id, image="")
     db.add(image)
     db.flush()  # image.id を採番
     # 2MB POST のアップロードはネットワーク I/O。event loop を塞がないよう threadpool へ。
     # 保存形式は実バイト判定(sniffed)を採用し、正しい Content-Type で配信する。
+    # Storage のオブジェクトキーは <group_id>/<image_id>（2人で共有）。
     image.image = await run_in_threadpool(
-        storage.save_image, user.id, image.id, content, sniffed
+        storage.save_image, group_id, image.id, content, sniffed
     )
     db.commit()
     # _to_out も署名URL発行(ブロッキング I/O)を含むため、async ハンドラから直接呼ばず
     # threadpool 経由で実行して event loop を塞がない（M4）。
-    return await run_in_threadpool(_to_out, db, user)
+    return await run_in_threadpool(_to_out, db, enabled, group_id)
 
 
 @router.delete("/celebration/image/{image_id}", response_model=CelebrationOut)
 def delete_celebration_image(
     image_id: str,
     user: User = Depends(get_current_user),
+    membership: GroupMember = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ) -> CelebrationOut:
     image = db.get(CelebrationImage, image_id)
-    if image is None or image.user_id != user.id:
+    # 共有画像はグループのメンバーなら誰でも削除可（所有チェックは group_id で）。
+    if image is None or image.group_id != membership.group_id:
         raise HTTPException(status_code=404, detail="画像が見つかりません")
     storage.delete_image(image.image)
     db.delete(image)
     db.commit()
-    return _to_out(db, user)
+    return _to_out(db, user.celebration_enabled, membership.group_id)
+
+
+@router.get("/theme", response_model=ThemeOut)
+def get_theme(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ThemeOut:
+    theme = db.get(UserTheme, user.id)
+    return ThemeOut(color=theme.color if theme else None)
+
+
+@router.put("/theme", response_model=ThemeOut)
+def update_theme(
+    body: ThemeIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ThemeOut:
+    """テーマカラーを保存する。None は行を消して標準の色へ戻す。"""
+    if body.color is None:
+        db.execute(delete(UserTheme).where(UserTheme.user_id == user.id))
+        db.commit()
+        return ThemeOut(color=None)
+
+    color = body.color.upper()
+    db.merge(UserTheme(user_id=user.id, color=color))
+    try:
+        db.commit()
+    except IntegrityError:
+        # 2台から同時に初回保存すると、片方の INSERT が主キーで衝突する。後勝ちで更新する。
+        db.rollback()
+        db.merge(UserTheme(user_id=user.id, color=color))
+        db.commit()
+    return ThemeOut(color=color)

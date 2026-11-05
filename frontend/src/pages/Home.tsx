@@ -8,7 +8,13 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import PaymentForm, { type PaymentFormValues } from "../components/PaymentForm";
 import PaymentList from "../components/PaymentList";
 import SummaryCard from "../components/SummaryCard";
-import type { CelebrationSettings, Group, Payment, Summary } from "../types";
+import type {
+  CelebrationSettings,
+  Group,
+  Label,
+  Payment,
+  Summary,
+} from "../types";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -23,9 +29,10 @@ export default function Home() {
   const [settling, setSettling] = useState(false);
   const [settleError, setSettleError] = useState("");
   const [celebrationUrl, setCelebrationUrl] = useState<string | null>(null);
-  // お祝い設定はマウント時に1回だけ取得して保持する（記録のたびに再取得しない）。
-  // 設定変更は別ルート(/settings)でのみ起き、戻ると Home が再マウントされ再取得される。
+  // ON/OFF はマウント時の値を使う（個人設定で、変更は別ルート /settings でのみ起きる）。
+  // 画像は相手も追加/削除できるため、ONの人だけ記録のたびに最新の一覧を取り直す。
   const [celebration, setCelebration] = useState<CelebrationSettings | null>(null);
+  const [labels, setLabels] = useState<Label[]>([]);
 
   const refresh = useCallback(async () => {
     const [s, p] = await Promise.all([
@@ -70,16 +77,31 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    // ラベルも付随機能なので、取得に失敗しても記録は止めない。
+    // /labels から戻ると Home は再マウントされるので、編集結果はここで反映される。
+    api
+      .get<Label[]>("/api/labels")
+      .then(setLabels)
+      .catch(() => {});
+  }, []);
+
   async function addPayment(values: PaymentFormValues) {
     await api.post<Payment>("/api/payments", values);
     await refresh();
-    // 記録成功後にお祝い画像ダイアログを表示（マウント時に取得済みの設定を使う）。
-    // 編集(updatePayment)では表示しない。複数枚あればランダムに1枚選ぶ。
-    if (celebration?.celebration_enabled && celebration.images.length > 0) {
-      const pick =
-        celebration.images[
-          Math.floor(Math.random() * celebration.images.length)
-        ];
+    // 記録成功後にお祝い画像ダイアログを表示。編集(updatePayment)では表示しない。
+    if (celebration?.celebration_enabled) void showCelebration(celebration);
+  }
+
+  async function showCelebration(cached: CelebrationSettings) {
+    // 取得に失敗しても記録自体は成功しているので、手元の一覧で表示する。
+    const latest = await api
+      .get<CelebrationSettings>("/api/me/celebration")
+      .catch(() => cached);
+    setCelebration(latest);
+    if (latest.celebration_enabled && latest.images.length > 0) {
+      // 複数枚あればランダムに1枚選ぶ。
+      const pick = latest.images[Math.floor(Math.random() * latest.images.length)];
       setCelebrationUrl(pick.url);
     }
   }
@@ -291,6 +313,28 @@ export default function Home() {
           </Link>
 
           <Link
+            to="/labels"
+            onClick={closeMenu}
+            className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-slate-700 hover:bg-primary-light"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-slate-500"
+            >
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            ラベル
+          </Link>
+
+          <Link
             to="/messages"
             onClick={closeMenu}
             className="flex items-center gap-4 px-6 py-3.5 text-base font-medium text-slate-700 hover:bg-primary-light"
@@ -343,9 +387,6 @@ export default function Home() {
           <h2 className="text-xl font-bold text-primary-text">
             お会計の金額を入力してね
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            払った人と「お会計の全額」を入れるだけ。半分に割らなくてOK、精算額は自動で計算します。
-          </p>
         </section>
 
         <SummaryCard
@@ -364,6 +405,7 @@ export default function Home() {
           <h2 className="mb-2 text-sm font-semibold text-slate-500">支払いを記録</h2>
           <PaymentForm
             members={group.members}
+            labels={labels}
             defaultPayerId={group.my_member_id}
             playSoundOnSubmit
             onSubmit={addPayment}
@@ -375,6 +417,7 @@ export default function Home() {
           <PaymentList
             payments={payments}
             members={group.members}
+            labels={labels}
             myMemberId={group.my_member_id}
             onUpdate={updatePayment}
             onDelete={deletePayment}

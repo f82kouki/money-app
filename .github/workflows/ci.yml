@@ -5,11 +5,13 @@
 #   2) 2回流しても安全（冪等性）
 #   3) 適用後にモデル↔DBの drift が無い（find_schema_drift）
 #
-# 限界（要 Alembic / 作戦書 Track③）:
-#   init_db() は create_all で新規DBに全列を作るため、本検査では
-#   「モデルに列を足したがマイグレ関数を足し忘れた」ケースは検出できない。
-#   その確実な検出には Alembic 導入後の `alembic check` が必要。
-#   それまでは runtime の 503 自衛(main.py)で守る。
+# migrations ジョブ（新規DB）:
+#   init_db() は create_all で全列を作るため、「モデルに列を足したがマイグレ関数を
+#   足し忘れた」ケースはここでは検出できない。
+#
+# upgrade ジョブ（既存DB）:
+#   base ブランチのスキーマ＋データを作ってから head の init_db() を流す。上記の
+#   足し忘れ、FK/index の付け忘れ、バックフィルの失敗はこちらで検出する。
 name: ci
 
 on:
@@ -51,3 +53,45 @@ jobs:
           assert not has_drift(drift), f"schema drift detected: {drift}"
           print("no drift:", drift)
           PY
+
+  upgrade:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warikan_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/warikan_ci
+      BASE_REF: ${{ github.base_ref || 'main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # base ブランチを取り出すため全履歴を取得
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: build the base schema with existing data
+        env:
+          PYTHONPATH: .
+        run: |
+          git worktree add /tmp/base "origin/$BASE_REF"
+          cd /tmp/base/backend
+          python -c "from app.db import init_db; init_db(); print('base schema ok')"
+          python "$GITHUB_WORKSPACE/backend/scripts/ci_seed_upgrade.py"
+      - name: upgrade to head, is idempotent, and matches the models
+        working-directory: backend
+        env:
+          PYTHONPATH: .
+        run: |
+          python -c "from app.db import init_db; init_db(); print('upgrade #1 ok')"
+          python -c "from app.db import init_db; init_db(); print('upgrade #2 ok (idempotent)')"
+          python scripts/ci_check_upgrade.py

@@ -8,6 +8,8 @@ import {
 } from "react";
 
 import { ApiError, api, getToken, setToken } from "../api/client";
+import { applyTheme } from "../theme";
+import type { ThemeSettings } from "../types";
 
 interface TokenOut {
   access_token: string;
@@ -17,6 +19,7 @@ interface AuthState {
   // 認証済みかどうか。null = 確認中（初回ロード）
   authed: boolean | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithAikotoba: (email: string, aikotoba: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -45,11 +48,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // テーマカラーは付随機能なので、取得に失敗しても端末の控えの色のまま続ける。
+  // 未ログインでは標準の色へ戻し、次の人へ前の人の色を見せない。
+  useEffect(() => {
+    if (authed === null) return;
+    if (!authed) {
+      applyTheme(null);
+      return;
+    }
+    let active = true;
+    api
+      .get<ThemeSettings>("/api/me/theme")
+      .then((theme) => {
+        if (active) applyTheme(theme.color);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [authed]);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.post<TokenOut>("/api/auth/login", { email, password });
     setToken(res.access_token);
     setAuthed(true);
   }, []);
+
+  const loginWithAikotoba = useCallback(
+    async (email: string, aikotoba: string) => {
+      const res = await api.post<TokenOut>("/api/auth/login-aikotoba", {
+        email,
+        aikotoba,
+      });
+      setToken(res.access_token);
+      setAuthed(true);
+    },
+    []
+  );
 
   const register = useCallback(async (email: string, password: string) => {
     const res = await api.post<TokenOut>("/api/auth/register", { email, password });
@@ -66,7 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ authed, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ authed, login, loginWithAikotoba, register, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
